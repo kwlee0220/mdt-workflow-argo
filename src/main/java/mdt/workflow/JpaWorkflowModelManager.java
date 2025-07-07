@@ -2,6 +2,7 @@ package mdt.workflow;
 
 import java.util.List;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,7 @@ public class JpaWorkflowModelManager implements WorkflowModelManager, JpaSession
 	}
 
 	@Override
-	public WorkflowModel getWorkflowModel(String id) throws ResourceNotFoundException {
+	public WorkflowModel getWorkflowModel(@NonNull String id) throws ResourceNotFoundException {
 		return getInJpaSession(em -> getJpaWorkflowModelInGuard(em, id)).getWorkflowModel();
 	}
 
@@ -159,6 +160,7 @@ public class JpaWorkflowModelManager implements WorkflowModelManager, JpaSession
 
 	private static JpaWorkflowModel getJpaWorkflowModelInGuard(EntityManager em, String id)
 		throws ResourceNotFoundException {
+		Preconditions.checkArgument(id != null, "WorkflowModel id is null");
 		Preconditions.checkState(em != null, "EntityManager is not set");
 		
 		String sql = "select model from JpaWorkflowModel model where model.id = ?1";

@@ -3,6 +3,7 @@ package mdt.workflow;
 import java.io.IOException;
 import java.util.List;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.openapitools.client.ApiClient;
 import org.openapitools.client.ApiException;
 import org.openapitools.client.api.WorkflowServiceApi;
@@ -14,6 +15,8 @@ import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1WorkflowStopReque
 import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1WorkflowSuspendRequest;
 import org.openapitools.client.model.StreamResultOfIoArgoprojWorkflowV1alpha1LogEntry;
 import org.springframework.beans.factory.InitializingBean;
+
+import com.google.common.base.Preconditions;
 
 import lombok.experimental.Delegate;
 
@@ -70,7 +73,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 							// 가끔 dag가 정의되지 않는 workflow가 존재하고,
 							// 이런 경우 제외시킨다.
 							.filter(argoWf -> argoWf.getSpec().getTemplates().get(0).getDag() != null)
-							.map(this::toWorkflow)
+							.map(this::toWorkflowInstance)
 							.castSafely(Workflow.class)
 							.toList();
 		}
@@ -84,7 +87,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 		try {
 			IoArgoprojWorkflowV1alpha1Workflow argoWf =
 					m_wfApi.workflowServiceGetWorkflow(m_namespace, name, null, null);
-			return toWorkflow(argoWf);
+			return toWorkflowInstance(argoWf);
 		}
 		catch ( ApiException e ) {
 			switch ( e.getCode() ) {
@@ -125,7 +128,9 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 	}
 
 	@Override
-	public Workflow startWorkflow(String wfModelId) throws ResourceNotFoundException {
+	public Workflow startWorkflow(@NonNull String wfModelId) throws ResourceNotFoundException {
+		Preconditions.checkArgument(wfModelId != null, "WorkflowModel id is null");
+		
 		WorkflowModel wfModel = getWorkflowModel(wfModelId);
 		try {
 			// MDT Workflow 모델을 Argo Workflow로 변환하고 Json으로 변환한다.
@@ -140,7 +145,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 			
 			// Argo Workflow를 생성한다 (시작한다).
 			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceCreateWorkflow(m_namespace, req);
-			return toWorkflow(argoWf);
+			return toWorkflowInstance(argoWf);
 		}
 		catch ( IOException | ApiException e ) {
 			throw new MDTWorkflowManagerException("fails to start workflow: model=" + wfModelId, e);
@@ -162,7 +167,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 		try {
 			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceSuspendWorkflow(m_namespace, name,
 																								SUSPEND_REQUEST);
-			return toWorkflow(argoWf);
+			return toWorkflowInstance(argoWf);
 		}
 		catch ( ApiException e ) {
 			throw new MDTWorkflowManagerException("fails to suspend workflow: name=" + name, e);
@@ -174,7 +179,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 		try {
 			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceResumeWorkflow(m_namespace, name,
 																								RESUME_REQUEST);
-			return toWorkflow(argoWf);
+			return toWorkflowInstance(argoWf);
 		}
 		catch ( ApiException e ) {
 			throw new MDTWorkflowManagerException("fails to resume workflow: name=" + name, e);
@@ -203,7 +208,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
         						m_conf.getMdtEndpoint(), m_conf.getClientDockerImage());
 	}
 	
-	private Workflow toWorkflow(IoArgoprojWorkflowV1alpha1Workflow argoWf) {
+	private Workflow toWorkflowInstance(IoArgoprojWorkflowV1alpha1Workflow argoWf) {
 		String modelId = Utilities.splitLast(argoWf.getMetadata().getName(), '-')._1;
 
 		KeyedValueList<String, TaskDescriptor> taskDescList;

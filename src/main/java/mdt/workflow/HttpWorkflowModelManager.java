@@ -3,6 +3,10 @@ package mdt.workflow;
 import java.io.IOException;
 import java.util.List;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
+import com.google.common.base.Preconditions;
+
 import utils.http.HttpClientProxy;
 import utils.http.HttpRESTfulClient;
 import utils.http.HttpRESTfulClient.ErrorEntityDeserializer;
@@ -13,6 +17,7 @@ import mdt.model.AASUtils;
 import mdt.model.MDTModelSerDe;
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
+
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
@@ -52,7 +57,9 @@ public class HttpWorkflowModelManager implements WorkflowModelManager, HttpClien
 	}
 
 	@Override
-	public WorkflowModel getWorkflowModel(String id) throws ResourceNotFoundException {
+	public WorkflowModel getWorkflowModel(@NonNull String id) throws ResourceNotFoundException {
+		Preconditions.checkArgument(id != null, "WorkflowModel id is null");
+		
 		String url = String.format("%s/models/%s", m_endpoint, id);
 		return m_restfulClient.get(url, m_wfModelDeser);
 	}

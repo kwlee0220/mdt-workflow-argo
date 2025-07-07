@@ -2,6 +2,7 @@ package mdt.workflow;
 
 import java.util.List;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -28,7 +29,7 @@ public interface WorkflowModelManager {
 	 * @return	워크플로우 모델 등록정보 객체.
 	 * @throws ResourceNotFoundException	식별자에 해당하는 워크플로우 모델이 존재하지 않는 경우.
 	 */
-	public WorkflowModel getWorkflowModel(String id) throws ResourceNotFoundException;
+	public WorkflowModel getWorkflowModel(@NonNull String id) throws ResourceNotFoundException;
 	
 	public String getWorkflowScript(String id, String mdtEndpoint, String clientDockerImage)
 		throws ResourceNotFoundException;
