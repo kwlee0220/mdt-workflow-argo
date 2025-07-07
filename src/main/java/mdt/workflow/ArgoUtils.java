@@ -80,7 +80,7 @@ public class ArgoUtils {
 				    		        	List<String> statusDeps = (status != null)
 				    		        							? statusDependencies.get(status.getDisplayName())
 				    		        							: null;
-				    		        	return toNodeTask(wfName, desc, status, statusDeps);
+				    		        	return toNodeTask(desc, status, statusDeps);
 				    		        })
 				    		        .toList();
 		
@@ -89,16 +89,16 @@ public class ArgoUtils {
 		LocalDateTime finished = FOption.map(argoWf.getStatus().getFinishedAt(), OffsetDateTime::toLocalDateTime);
 		
 		return Workflow.builder()
-						.name(argoWf.getMetadata().getName())
+						.name(wfName)
 						.status(toWorkflowStatus(argoWf.getStatus().getPhase()))
 						.creationTime(created)
 						.startTime(started)
 						.finishTime(finished)
-						.nodeTasks(nodeTaskList)
+						.tasks(nodeTaskList)
 						.build();
 	}
 	
-	private static NodeTask toNodeTask(String wfName, TaskDescriptor task,
+	private static NodeTask toNodeTask(TaskDescriptor task,
 										IoArgoprojWorkflowV1alpha1NodeStatus status, List<String> statusDeps) {
 		if ( status != null ) {
 			String taskId = status.getDisplayName();
@@ -107,10 +107,10 @@ public class ArgoUtils {
 			LocalDateTime finished = FOption.map(status.getFinishedAt(), OffsetDateTime::toLocalDateTime);
 			
 			WorkflowStatus wstatus = toWorkflowStatus(status.getPhase());
-			return new NodeTask(wfName, taskId, wstatus, Sets.newHashSet(statusDeps), started, finished);
+			return new NodeTask(taskId, wstatus, Sets.newHashSet(statusDeps), started, finished);
 		}
 		else {
-			return new NodeTask(wfName, task.getId(), WorkflowStatus.NOT_STARTED,
+			return new NodeTask(task.getId(), WorkflowStatus.NOT_STARTED,
 									task.getDependencies(), null, null);
 		}
 	}
