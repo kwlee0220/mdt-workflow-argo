@@ -29,7 +29,7 @@ import mdt.workflow.model.TaskDescriptor;
 public class ArgoUtils {
 	public static WorkflowStatus toWorkflowStatus(String status) {
 		if ( status == null ) {
-			return WorkflowStatus.UNKNOWN;
+			return WorkflowStatus.NOT_STARTED;
 		}
 		
 		switch ( status ) {
