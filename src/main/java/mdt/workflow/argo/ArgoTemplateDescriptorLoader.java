@@ -14,6 +14,7 @@ import mdt.model.sm.variable.Variable;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.argo.ArgoContainerTemplateDescriptor.ContainerDescriptor;
 import mdt.workflow.argo.ArgoDagTemplateDescriptor.DagDescriptor;
+import mdt.workflow.model.Option;
 import mdt.workflow.model.TaskDescriptor;
 
 /**
@@ -58,36 +59,25 @@ public class ArgoTemplateDescriptorLoader {
 		return new ArgoContainerTemplateDescriptor(task.getId()+"-template", container);
 	}
 	
+	private static final String MDT_CLIENT_JAR_FILE = "mdt-client-all.jar";
+	
 	private ContainerDescriptor toContainerDescriptor(TaskDescriptor task) {
 		String taskType = task.getType();
 		
-		List<String> args = Lists.newArrayList("-cp", "mdt-client-all.jar", taskType + "Runner");
-		args.addAll(task.toEncodedString());
+		List<String> args = Lists.newArrayList("-cp", MDT_CLIENT_JAR_FILE, taskType + "Command");
 
-//		if ( taskType.equals(SetTask.class.getName()) ) {
-//			addSetTaskParameters(task, args);
-//		}
-//		
-//		FStream.from(task.getOptions())
-//				.flatMapIterable(Option::toCommandOptionSpec)
-//				.forEach(args::add);
-//		
-//		// 'VARIABLE' type의 input port의 경우에는 dependent task에서 생성한 output parameter 값을
-//		// command line 인자로 전달된다.
-//		
-//		if ( taskType.equals(SetTask.class.getName()) ) {
-//			addSetTaskOptions(task, args);
-//		}
-//		else {
-//			for ( Variable inVar: task.getInputVariables() ) {
-//				args.add(String.format("--in.%s", inVar.getName()));
-//				args.add(toVariableString(inVar));
-//			}
-//			for ( Variable outVar: task.getOutputVariables() ) {
-//				args.add(String.format("--out.%s", outVar.getName()));
-//				args.add(toVariableString(outVar));
-//			}
-//		}
+		for ( Variable inVar: task.getInputVariables() ) {
+			args.add(String.format("--in.%s", inVar.getName()));
+			args.add(toVariableString(inVar));
+		}
+		for ( Variable outVar: task.getOutputVariables() ) {
+			args.add(String.format("--out.%s", outVar.getName()));
+			args.add(toVariableString(outVar));
+		}
+		
+		FStream.from(task.getOptions())
+				.flatMapIterable(Option::toCommandOptionSpec)
+				.forEach(args::add);
 		
 		List<NameValue> environs = List.of(
 			new NameValue("MDT_ENDPOINT", m_mdtEndpoint)

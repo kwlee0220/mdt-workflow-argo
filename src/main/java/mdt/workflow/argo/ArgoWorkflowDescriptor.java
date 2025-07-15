@@ -36,7 +36,7 @@ public class ArgoWorkflowDescriptor {
 		
 		String paramMdtEndpoint = "{{workflow.parameters.mdt-endpoint}}";
 		String paramClientImage = "{{workflow.parameters.mdt-client-image}}";
-		ArgoTemplateDescriptorLoader2 loader = new ArgoTemplateDescriptorLoader2(wfDesc, paramMdtEndpoint,
+		ArgoTemplateDescriptorLoader loader = new ArgoTemplateDescriptorLoader(wfDesc, paramMdtEndpoint,
 																				paramClientImage);
 		
 		Arguments args = new Arguments(
