@@ -75,7 +75,7 @@ public class ArgoTemplateDescriptorLoader {
 			args.add(toVariableString(outVar));
 		}
 		
-		FStream.from(task.getOptions())
+		FStream.from(task.getOptions().values())
 				.flatMapIterable(Option::toCommandOptionSpec)
 				.forEach(args::add);
 		

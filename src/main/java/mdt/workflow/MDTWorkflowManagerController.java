@@ -163,49 +163,140 @@ public class MDTWorkflowManagerController implements InitializingBean {
     	
 		return m_wfManager.getWorkflowScript(id, mdtEndpoint, clientImage);
     }
-	
+
+
+    @Operation(summary = "생성된 모든 워크플로우 인스턴스들을 반환한다.")
+    @Parameters()
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+    		content = {
+    			@Content(mediaType = "application/json",
+    					array = @ArraySchema(schema=@Schema(implementation = Workflow.class)))
+    		}
+    	)
+    })
 	@GetMapping("/workflows")
     @ResponseStatus(HttpStatus.OK)
 	public List<Workflow> getWorkflowAll() {
 		return m_wfManager.getWorkflowAll();
 	}
 
+    @Operation(summary = "식별자에 해당하는 워크플로우 인스턴스를 반환한다.")
+    @Parameters({
+    	@Parameter(name = "id", description = "검색할 워크플로우 인스턴스 식별자")
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = Workflow.class), mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
+    })
 	@GetMapping("/workflows/{wfName}")
     @ResponseStatus(HttpStatus.OK)
 	public Workflow getWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
 		return m_wfManager.getWorkflow(wfName);
 	}
 
+    @Operation(summary = "워크플로우 관리자에 등록된 워크플로우 모델을 이용하여 새로운 워크플로우를 시작시킨다.")
+    @Parameters({
+    	@Parameter(name = "wfModelId", description = "워크플로우 모델 식별자"),
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "201", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = WorkflowModel.class),
+						mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 모델이 없는 경우.")
+    })
 	@PutMapping("/models/{modelId}/start")
     @ResponseStatus(HttpStatus.OK)
 	public Workflow startWorkflow(@PathVariable("modelId") String wfModelId) throws ResourceNotFoundException {
 		return m_wfManager.startWorkflow(wfModelId);
 	}
 
+    @Operation(summary = "동작 중인 워크플로우를 종료시킨다.")
+    @Parameters({
+    	@Parameter(name = "wfname", description = "워크플로우 인스턴스 식별자"),
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "204", description = "성공적으로 종료됨",
+			content = {
+				@Content(schema = @Schema(implementation = WorkflowModel.class),
+						mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 모델이 없는 경우.")
+    })
 	@PutMapping("/workflows/{wfname}/stop")
     @ResponseStatus(HttpStatus.NO_CONTENT)
 	public void stopWorkflow(@PathVariable("wfname") String wfName) throws ResourceNotFoundException {
 		m_wfManager.stopWorkflow(wfName);
 	}
 
+    @Operation(summary = "식별자에 해당하는 워크플로우 인스턴스를 수행 중지시킨다.")
+    @Parameters({
+    	@Parameter(name = "wfName", description = "중지시킬 워크플로우 인스턴스 식별자")
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = Workflow.class), mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
+    })
 	@PutMapping("/workflows/{wfName}/suspend")
     @ResponseStatus(HttpStatus.OK)
 	public Workflow suspendWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
 		return m_wfManager.suspendWorkflow(wfName);
 	}
 
+    @Operation(summary = "수행 중지된 워크플로우 인스턴스를 재개시킨다.")
+    @Parameters({
+    	@Parameter(name = "wfName", description = "재개시킬 워크플로우 인스턴스 식별자")
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = Workflow.class), mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
+    })
 	@PutMapping("/workflows/{wfName}/resume")
     @ResponseStatus(HttpStatus.OK)
 	public Workflow resumeWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
 		return m_wfManager.resumeWorkflow(wfName);
 	}
 
+    @Operation(summary = "워크플로우 인스턴스를 삭제시킨다.")
+    @Parameters({
+    	@Parameter(name = "wfName", description = "삭제시킬 워크플로우 인스턴스 식별자")
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = Workflow.class), mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
+    })
 	@DeleteMapping("/workflows/{wfName}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
 	public void removeWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
 		m_wfManager.removeWorkflow(wfName);
 	}
 
+    @Operation(summary = "주어진 POD에서 수행 중인 워크플로우 인스턴스의 로그 정보를 조회한다.")
+    @Parameters({
+    	@Parameter(name = "wfName", description = "삭제시킬 워크플로우 인스턴스 식별자"),
+    	@Parameter(name = "podName", description = "수행 중인 POD 이름")
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = Workflow.class), mediaType = "application/json")
+			}),
+    	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
+    })
 	@GetMapping("/workflows/{wfName}/log/{podName}")
     @ResponseStatus(HttpStatus.OK)
 	public String log(@PathVariable("wfName") String wfName, @PathVariable("podName") String podName)
