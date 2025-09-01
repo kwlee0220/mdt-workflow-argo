@@ -1,6 +1,8 @@
-package mdt.workflow;
+package mdt.workflow.service;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -15,10 +17,11 @@ import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1WorkflowStopReque
 import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1WorkflowSuspendRequest;
 import org.openapitools.client.model.StreamResultOfIoArgoprojWorkflowV1alpha1LogEntry;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.stereotype.Service;
 
 import com.google.common.base.Preconditions;
 
-import lombok.experimental.Delegate;
+import lombok.RequiredArgsConstructor;
 
 import utils.KeyedValueList;
 import utils.Utilities;
@@ -27,6 +30,11 @@ import utils.stream.FStream;
 
 import mdt.model.MDTModelSerDe;
 import mdt.model.ResourceNotFoundException;
+import mdt.workflow.MDTWorkflowManagerException;
+import mdt.workflow.Workflow;
+import mdt.workflow.WorkflowInstanceManager;
+import mdt.workflow.WorkflowModel;
+import mdt.workflow.argo.ArgoUtils;
 import mdt.workflow.argo.ArgoWorkflowDescriptor;
 import mdt.workflow.config.MDTWorkflowManagerConfiguration;
 import mdt.workflow.model.TaskDescriptor;
@@ -36,7 +44,9 @@ import mdt.workflow.model.TaskDescriptor;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-public class OpenApiArgoWorkflowManager implements WorkflowManager, InitializingBean {
+@Service
+@RequiredArgsConstructor
+public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, InitializingBean {
 	private static final IoArgoprojWorkflowV1alpha1WorkflowStopRequest STOP_REQUEST
 															= new IoArgoprojWorkflowV1alpha1WorkflowStopRequest();
 	private static final IoArgoprojWorkflowV1alpha1WorkflowSuspendRequest SUSPEND_REQUEST
@@ -44,20 +54,16 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 	private static final IoArgoprojWorkflowV1alpha1WorkflowResumeRequest RESUME_REQUEST
 															= new IoArgoprojWorkflowV1alpha1WorkflowResumeRequest();
 	
-	@Delegate private final WorkflowModelManager m_modelManager;
+	private final JpaWorkflowModelManager m_wfModelManager;
 	private final MDTWorkflowManagerConfiguration m_conf;
-	private final String m_namespace;
 	
+	private String m_namespace;
 	private WorkflowServiceApi m_wfApi;
-	
-	public OpenApiArgoWorkflowManager(WorkflowModelManager modelManager, MDTWorkflowManagerConfiguration conf) {
-		m_modelManager = modelManager;
-		m_conf = conf;
-		m_namespace = conf.getArgoNamespace();
-	}
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
+		m_namespace = m_conf.getArgoNamespace();
+		
 	    ApiClient client = new ApiClient(OkHttpClientUtils.newTrustAllOkHttpClient());
 	    client.setBasePath(m_conf.getArgoEndpoint());
 	    m_wfApi = new WorkflowServiceApi(client);
@@ -66,9 +72,9 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 	@Override
 	public List<Workflow> getWorkflowAll() {
 		try {
-			IoArgoprojWorkflowV1alpha1WorkflowList wfList =
-					m_wfApi.workflowServiceListWorkflows(m_namespace, null, null, null, null, null,
-															null, null, null, null, null, null, null);
+			IoArgoprojWorkflowV1alpha1WorkflowList wfList
+								= m_wfApi.workflowServiceListWorkflows(m_namespace, null, null, null, null, null,
+																		null, null, null, null, null, null, null);
 			return FStream.from(wfList.getItems())
 							// 가끔 dag가 정의되지 않는 workflow가 존재하고,
 							// 이런 경우 제외시킨다.
@@ -78,34 +84,33 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 							.toList();
 		}
 		catch ( ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to get workflow list", e);
+			throw toMDTWorkflowManagerException(e, "fails to get workflow list");
 		}
 	}
 	
 	@Override
-	public Workflow getWorkflow(String name) {
+	public Workflow getWorkflow(String wfId) {
 		try {
 			IoArgoprojWorkflowV1alpha1Workflow argoWf =
-					m_wfApi.workflowServiceGetWorkflow(m_namespace, name, null, null);
+					m_wfApi.workflowServiceGetWorkflow(m_namespace, wfId, null, null);
 			return toWorkflowInstance(argoWf);
 		}
 		catch ( ApiException e ) {
 			switch ( e.getCode() ) {
 				case 404:
-					throw new ResourceNotFoundException("Workflow", "name=" + name);
-				default:
-					throw new MDTWorkflowManagerException("fails to get workflow: name=" + name, e);
+					throw new ResourceNotFoundException("Workflow", "name=" + wfId);
 			}
+			throw toMDTWorkflowManagerException(e, "fails to get workflow: name=" + wfId);
 		}
 	}
 
 	@Override
-	public void removeWorkflow(String name) {
+	public void removeWorkflow(String wfId) {
 		try {
-			m_wfApi.workflowServiceDeleteWorkflow(m_namespace, name, null, null, null, null, null, null, null);
+			m_wfApi.workflowServiceDeleteWorkflow(m_namespace, wfId, null, null, null, null, null, null, null);
 		}
 		catch ( ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to remove workflow: name=" + name, e);
+			throw toMDTWorkflowManagerException(e, "fails to remove workflow: name=" + wfId);
 		}
 	}
 
@@ -123,7 +128,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 				});
 		}
 		catch ( ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to remove workflow all", e);
+			throw toMDTWorkflowManagerException(e, "fails to remove workflow all");
 		}
 	}
 
@@ -131,8 +136,9 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 	public Workflow startWorkflow(@NonNull String wfModelId) throws ResourceNotFoundException {
 		Preconditions.checkArgument(wfModelId != null, "WorkflowModel id is null");
 		
-		WorkflowModel wfModel = getWorkflowModel(wfModelId);
 		try {
+			WorkflowModel wfModel = m_wfModelManager.getWorkflowModel(wfModelId);
+			
 			// MDT Workflow 모델을 Argo Workflow로 변환하고 Json으로 변환한다.
 			ArgoWorkflowDescriptor argoWfDesc = new ArgoWorkflowDescriptor(wfModel, m_conf.getMdtEndpoint(),
 																			m_conf.getClientDockerImage());
@@ -148,56 +154,56 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 			return toWorkflowInstance(argoWf);
 		}
 		catch ( IOException | ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to start workflow: model=" + wfModelId, e);
+			throw toMDTWorkflowManagerException(e, "fails to start workflow: model=" + wfModelId);
 		}
 	}
 
 	@Override
-	public void stopWorkflow(String name) throws ResourceNotFoundException {
+	public void stopWorkflow(String wfId) throws ResourceNotFoundException {
 		try {
-			m_wfApi.workflowServiceStopWorkflow(m_namespace, name, STOP_REQUEST);
+			m_wfApi.workflowServiceStopWorkflow(m_namespace, wfId, STOP_REQUEST);
 		}
 		catch ( ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to stop workflow: name=" + name, e);
+			throw toMDTWorkflowManagerException(e, "fails to stop workflow: name=" + wfId);
 		}
 	}
 
 	@Override
-	public Workflow suspendWorkflow(String name) throws ResourceNotFoundException {
+	public Workflow suspendWorkflow(String wfId) throws ResourceNotFoundException {
 		try {
-			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceSuspendWorkflow(m_namespace, name,
+			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceSuspendWorkflow(m_namespace, wfId,
 																								SUSPEND_REQUEST);
 			return toWorkflowInstance(argoWf);
 		}
 		catch ( ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to suspend workflow: name=" + name, e);
+			throw toMDTWorkflowManagerException(e, "fails to suspend workflow: name=" + wfId);
 		}
 	}
 
 	@Override
-	public Workflow resumeWorkflow(String name) throws ResourceNotFoundException {
+	public Workflow resumeWorkflow(String wfId) throws ResourceNotFoundException {
 		try {
-			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceResumeWorkflow(m_namespace, name,
+			IoArgoprojWorkflowV1alpha1Workflow argoWf = m_wfApi.workflowServiceResumeWorkflow(m_namespace, wfId,
 																								RESUME_REQUEST);
 			return toWorkflowInstance(argoWf);
 		}
 		catch ( ApiException e ) {
-			throw new MDTWorkflowManagerException("fails to resume workflow: name=" + name, e);
+			throw toMDTWorkflowManagerException(e, "fails to resume workflow: name=" + wfId);
 		}
 	}
 
 	@Override
-	public String getWorkflowLog(String wfName, String podName) throws ResourceNotFoundException {
+	public String getWorkflowLog(String wfId, String podName) throws ResourceNotFoundException {
 		try {
 			podName = "thickness-simulation-long-sv4pj-1226849899";
 			StreamResultOfIoArgoprojWorkflowV1alpha1LogEntry logEntry
-								= m_wfApi.workflowServiceWorkflowLogs(m_namespace, wfName, null, null, null, null,
+								= m_wfApi.workflowServiceWorkflowLogs(m_namespace, wfId, null, null, null, null,
 																	null, null, null, null, null, null, null, null, null);
 			return logEntry.getResult().getContent();
 		}
 		catch ( ApiException e ) {
-			String msg = String.format("fails to log workflow: name=%s, pod=%s", wfName, podName);
-			throw new MDTWorkflowManagerException(msg, e);
+			throw toMDTWorkflowManagerException(e,
+										String.format("fails to log workflow: name=%s, pod=%s", wfId, podName));
 		}
 	}
 	
@@ -213,7 +219,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 
 		KeyedValueList<String, TaskDescriptor> taskDescList;
 		try {
-			WorkflowModel wfModel = getWorkflowModel(modelId);
+			WorkflowModel wfModel = m_wfModelManager.getWorkflowModel(modelId);
 			taskDescList = KeyedValueList.from(wfModel.getTaskDescriptors(), TaskDescriptor::getId);
 		}
 		catch ( ResourceNotFoundException expected ) {
@@ -222,5 +228,21 @@ public class OpenApiArgoWorkflowManager implements WorkflowManager, Initializing
 
 		return ArgoUtils.toWorkflow(argoWf, taskDescList);
 		
+	}
+	
+	private MDTWorkflowManagerException toMDTWorkflowManagerException(Throwable e, String msg) {
+		Throwable cause = e.getCause();
+		if ( cause != null ) {
+			if ( cause instanceof SocketTimeoutException ) {
+				return new MDTWorkflowManagerException("connect timeout: server="
+														+ m_conf.getArgoEndpoint(), cause);
+			}
+			else if ( cause instanceof UnknownHostException ) {
+				return new MDTWorkflowManagerException("fails to connect to Argo server: "
+														+ m_conf.getArgoEndpoint(), cause);
+			}
+		}
+		
+		return new MDTWorkflowManagerException(msg, e);
 	}
 }

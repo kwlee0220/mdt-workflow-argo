@@ -1,4 +1,4 @@
-package mdt.workflow;
+package mdt.workflow.argo;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -18,6 +18,9 @@ import utils.func.FOption;
 import utils.stream.FStream;
 import utils.stream.KeyValueFStream;
 
+import mdt.workflow.NodeTask;
+import mdt.workflow.Workflow;
+import mdt.workflow.WorkflowStatus;
 import mdt.workflow.model.TaskDescriptor;
 
 
@@ -38,6 +41,7 @@ public class ArgoUtils {
 			case "Succeeded":
 				return WorkflowStatus.COMPLETED;
 			case "Failed":
+			case "Error":
 				return WorkflowStatus.FAILED;
 			case "Pending":
 				return WorkflowStatus.STARTING;

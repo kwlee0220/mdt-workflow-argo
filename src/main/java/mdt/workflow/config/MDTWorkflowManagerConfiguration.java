@@ -12,7 +12,7 @@ import lombok.experimental.Accessors;
  * @author Kang-Woo Lee (ETRI)
  */
 @Configuration
-@ConfigurationProperties(prefix = "workflow-manager")
+@ConfigurationProperties(prefix = "mdt.workflow-manager")
 @Getter @Setter
 @Accessors(prefix = "m_")
 public class MDTWorkflowManagerConfiguration {

@@ -75,9 +75,17 @@ public class ArgoTemplateDescriptorLoader {
 			args.add(toVariableString(outVar));
 		}
 		
-		FStream.from(task.getOptions().values())
-				.flatMapIterable(Option::toCommandOptionSpec)
-				.forEach(args::add);
+		for ( Option opt: task.getOptions().values() ) {
+			// option의 이름이 timeout인 경우 null 또는 ""인 경우에는 argument 로 추가하지 않음.
+			switch ( opt.getName() ) {
+				case "timeout":
+					if ( opt.getValue() == null || opt.getValue().equals("") ) {
+						continue;
+					}
+					break;
+			}
+			opt.toCommandOptionSpec().stream().forEach(args::add);
+		}
 		
 		List<NameValue> environs = List.of(
 			new NameValue("MDT_ENDPOINT", m_mdtEndpoint)

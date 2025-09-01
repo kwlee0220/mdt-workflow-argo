@@ -1,12 +1,11 @@
-package mdt.workflow;
+package mdt.workflow.controller;
 
+import java.util.Collections;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -30,6 +29,10 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import utils.Throwables;
 import utils.func.FOption;
@@ -39,25 +42,24 @@ import utils.http.RESTfulErrorEntity;
 import mdt.model.AASUtils;
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
+import mdt.workflow.Workflow;
+import mdt.workflow.WorkflowModel;
 import mdt.workflow.config.MDTWorkflowManagerConfiguration;
+import mdt.workflow.service.MDTWorkflowManager;
 
 
 /**
 *
 * @author Kang-Woo Lee (ETRI)
 */
+@Tag(name = "MDTWorkflowManager", description = "MDT 워크플로우 관리 API")
 @RestController
 @RequestMapping(value={"/workflow-manager"})
-public class MDTWorkflowManagerController implements InitializingBean {
-	private final Logger s_logger = LoggerFactory.getLogger(MDTWorkflowManagerController.class);
-
+@Slf4j
+@RequiredArgsConstructor
+public class MDTWorkflowManagerController {
 	@Autowired private MDTWorkflowManagerConfiguration m_conf;
-	@Autowired private WorkflowManager m_wfManager;
-
-	@Override
-	public void afterPropertiesSet() throws Exception  {
-		s_logger.info("Started: MDTWorkflowManagerController {}", m_wfManager);
-	}
+	@Autowired private MDTWorkflowManager m_wfManager;
 
     @Operation(summary = "식별자에 해당하는 워크플로우 모델을 반환한다.")
     @Parameters({
@@ -109,12 +111,13 @@ public class MDTWorkflowManagerController implements InitializingBean {
     })
     @PostMapping({"/models"})
     @ResponseStatus(HttpStatus.CREATED)
-    public String addWorkflowModel(@RequestBody WorkflowModel wfDesc,
-									@RequestParam(name="updateIfExists", defaultValue="false") boolean updateIfExists)
+    public WorkflowModel addWorkflowModel(@RequestBody WorkflowModel wfDesc,
+										@RequestParam(name="updateIfExists", defaultValue="false") boolean updateIfExists)
     	throws ResourceAlreadyExistsException {
-    	String wfId = (updateIfExists) ? m_wfManager.addOrUpdateWorkflowModel(wfDesc)
-    									: m_wfManager.addWorkflowModel(wfDesc);
-    	return wfId;
+    	WorkflowModel wfModel = (updateIfExists)
+    							? m_wfManager.addOrReplaceWorkflowModel(wfDesc)
+    							: m_wfManager.addWorkflowModel(wfDesc);
+    	return wfModel;
     }
 
     @Operation(summary = "식별자에 해당하는 워크플로우 모델을 삭제한다.")
@@ -163,6 +166,11 @@ public class MDTWorkflowManagerController implements InitializingBean {
     	
 		return m_wfManager.getWorkflowScript(id, mdtEndpoint, clientImage);
     }
+    
+    @PostMapping("/execution-times/tasks/{smRef}")
+    public Double estimateTaskExecutionTime(@PathVariable("smRef") String smId) {
+    	return 11.5;
+    }
 
 
     @Operation(summary = "생성된 모든 워크플로우 인스턴스들을 반환한다.")
@@ -178,7 +186,19 @@ public class MDTWorkflowManagerController implements InitializingBean {
 	@GetMapping("/workflows")
     @ResponseStatus(HttpStatus.OK)
 	public List<Workflow> getWorkflowAll() {
-		return m_wfManager.getWorkflowAll();
+		try {
+			return m_wfManager.getWorkflowAll();
+		}
+		catch ( IllegalArgumentException e ) {
+			String msg = e.getMessage();
+			if ( msg.equals("Expected the field `items` to be an array in the JSON string but got `null`") ) {
+				// argo-java-client 라이브러리에서는 버그 때문에 workflow가 하나도 없는 경우 오류가 발생.
+				return Collections.emptyList();
+			}
+			else {
+				throw e;
+			}
+		}
 	}
 
     @Operation(summary = "식별자에 해당하는 워크플로우 인스턴스를 반환한다.")
@@ -192,10 +212,10 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
     })
-	@GetMapping("/workflows/{wfName}")
+	@GetMapping("/workflows/{wfId}")
     @ResponseStatus(HttpStatus.OK)
-	public Workflow getWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
-		return m_wfManager.getWorkflow(wfName);
+	public Workflow getWorkflow(@PathVariable("wfId") String wfId) throws ResourceNotFoundException {
+		return m_wfManager.getWorkflow(wfId);
 	}
 
     @Operation(summary = "워크플로우 관리자에 등록된 워크플로우 모델을 이용하여 새로운 워크플로우를 시작시킨다.")
@@ -210,7 +230,7 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 모델이 없는 경우.")
     })
-	@PutMapping("/models/{modelId}/start")
+	@PostMapping("/models/{modelId}/start")
     @ResponseStatus(HttpStatus.OK)
 	public Workflow startWorkflow(@PathVariable("modelId") String wfModelId) throws ResourceNotFoundException {
 		return m_wfManager.startWorkflow(wfModelId);
@@ -218,7 +238,7 @@ public class MDTWorkflowManagerController implements InitializingBean {
 
     @Operation(summary = "동작 중인 워크플로우를 종료시킨다.")
     @Parameters({
-    	@Parameter(name = "wfname", description = "워크플로우 인스턴스 식별자"),
+    	@Parameter(name = "wfId", description = "워크플로우 인스턴스 식별자"),
     })
     @ApiResponses(value = {
     	@ApiResponse(responseCode = "204", description = "성공적으로 종료됨",
@@ -228,15 +248,15 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 모델이 없는 경우.")
     })
-	@PutMapping("/workflows/{wfname}/stop")
+    @PutMapping("/workflows/{wfId}/stop")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-	public void stopWorkflow(@PathVariable("wfname") String wfName) throws ResourceNotFoundException {
-		m_wfManager.stopWorkflow(wfName);
+	public void stopWorkflow(@PathVariable("wfId") String wfId) throws ResourceNotFoundException {
+		m_wfManager.stopWorkflow(wfId);
 	}
 
     @Operation(summary = "식별자에 해당하는 워크플로우 인스턴스를 수행 중지시킨다.")
     @Parameters({
-    	@Parameter(name = "wfName", description = "중지시킬 워크플로우 인스턴스 식별자")
+    	@Parameter(name = "wfId", description = "중지시킬 워크플로우 인스턴스 식별자")
     })
     @ApiResponses(value = {
     	@ApiResponse(responseCode = "200", description = "성공",
@@ -245,15 +265,15 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
     })
-	@PutMapping("/workflows/{wfName}/suspend")
+	@PutMapping("/workflows/{wfId}/suspend")
     @ResponseStatus(HttpStatus.OK)
-	public Workflow suspendWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
-		return m_wfManager.suspendWorkflow(wfName);
+	public Workflow suspendWorkflow(@PathVariable("wfId") String wfId) throws ResourceNotFoundException {
+		return m_wfManager.suspendWorkflow(wfId);
 	}
 
     @Operation(summary = "수행 중지된 워크플로우 인스턴스를 재개시킨다.")
     @Parameters({
-    	@Parameter(name = "wfName", description = "재개시킬 워크플로우 인스턴스 식별자")
+    	@Parameter(name = "wfId", description = "재개시킬 워크플로우 인스턴스 식별자")
     })
     @ApiResponses(value = {
     	@ApiResponse(responseCode = "200", description = "성공",
@@ -262,15 +282,15 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
     })
-	@PutMapping("/workflows/{wfName}/resume")
+	@PutMapping("/workflows/{wfId}/resume")
     @ResponseStatus(HttpStatus.OK)
-	public Workflow resumeWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
-		return m_wfManager.resumeWorkflow(wfName);
+	public Workflow resumeWorkflow(@PathVariable("wfId") String wfId) throws ResourceNotFoundException {
+		return m_wfManager.resumeWorkflow(wfId);
 	}
 
     @Operation(summary = "워크플로우 인스턴스를 삭제시킨다.")
     @Parameters({
-    	@Parameter(name = "wfName", description = "삭제시킬 워크플로우 인스턴스 식별자")
+    	@Parameter(name = "wfId", description = "삭제시킬 워크플로우 인스턴스 식별자")
     })
     @ApiResponses(value = {
     	@ApiResponse(responseCode = "200", description = "성공",
@@ -279,15 +299,40 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
     })
-	@DeleteMapping("/workflows/{wfName}")
+	@DeleteMapping("/workflows/{wfId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-	public void removeWorkflow(@PathVariable("wfName") String wfName) throws ResourceNotFoundException {
-		m_wfManager.removeWorkflow(wfName);
+	public void removeWorkflow(@PathVariable("wfId") String wfId) {
+		m_wfManager.removeWorkflow(wfId);
+	}
+
+    @Operation(summary = "모든 워크플로우 인스턴스를 삭제시킨다.")
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode = "200", description = "성공",
+			content = {
+				@Content(schema = @Schema(implementation = Workflow.class), mediaType = "application/json")
+			})
+    })
+	@DeleteMapping("/workflows")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+	public void removeWorkflowAll(@RequestParam(name="modelFilter", required=false) String modelFilter) {
+    	if ( modelFilter != null ) {
+			m_wfManager.getWorkflowAll().stream()
+						.filter(wf -> wf.getModelId().equals(modelFilter))
+						.forEach(wf -> {
+							try {
+								m_wfManager.removeWorkflow(wf.getName());
+							}
+							catch ( ResourceNotFoundException e ) { }
+						});
+    	}
+    	else {
+    		m_wfManager.removeWorkflowAll();
+    	}
 	}
 
     @Operation(summary = "주어진 POD에서 수행 중인 워크플로우 인스턴스의 로그 정보를 조회한다.")
     @Parameters({
-    	@Parameter(name = "wfName", description = "삭제시킬 워크플로우 인스턴스 식별자"),
+    	@Parameter(name = "wfId", description = "삭제시킬 워크플로우 인스턴스 식별자"),
     	@Parameter(name = "podName", description = "수행 중인 POD 이름")
     })
     @ApiResponses(value = {
@@ -297,24 +342,30 @@ public class MDTWorkflowManagerController implements InitializingBean {
 			}),
     	@ApiResponse(responseCode = "404", description = "식별자에 해당하는 워크플로우 인스턴스가 없는 경우.")
     })
-	@GetMapping("/workflows/{wfName}/log/{podName}")
+	@GetMapping("/workflows/{wfId}/log/{podName}")
     @ResponseStatus(HttpStatus.OK)
-	public String log(@PathVariable("wfName") String wfName, @PathVariable("podName") String podName)
+	public String log(@PathVariable("wfId") String wfId, @PathVariable("podName") String podName)
 		throws ResourceNotFoundException {
-		return m_wfManager.getWorkflowLog(wfName, podName);
+		return m_wfManager.getWorkflowLog(wfId, podName);
 	}
     
     @ExceptionHandler()
     public ResponseEntity<RESTfulErrorEntity> handleException(Exception e) {
 		Throwable cause = Throwables.unwrapThrowable(e);
     	if ( cause instanceof ResourceNotFoundException ) {
-    		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(RESTfulErrorEntity.of(cause));
+    		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    							.contentType(MediaType.APPLICATION_JSON)
+    							.body(RESTfulErrorEntity.of(cause));
     	}
     	else if ( cause instanceof ResourceAlreadyExistsException ) {
-    		return ResponseEntity.status(HttpStatus.CONFLICT).body(RESTfulErrorEntity.of(cause));
+    		return ResponseEntity.status(HttpStatus.CONFLICT)
+								.contentType(MediaType.APPLICATION_JSON)
+								.body(RESTfulErrorEntity.of(cause));
     	}
     	else {
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR) .body(RESTfulErrorEntity.of(cause));
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+								.contentType(MediaType.APPLICATION_JSON)
+								.body(RESTfulErrorEntity.of(cause));
     	}
     }
 }
