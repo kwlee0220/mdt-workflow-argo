@@ -2,6 +2,7 @@ package mdt.workflow.service;
 
 import java.util.List;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 import utils.func.Try;
 
+import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
 import mdt.workflow.MDTWorkflowManagerException;
 import mdt.workflow.WorkflowModel;
@@ -43,8 +45,14 @@ public class JpaWorkflowModelManager implements WorkflowModelManager {
     }
     
     public WorkflowModel addWorkflowModel(WorkflowModel wfModel) {
-		JpaWorkflowModel saved = m_repo.save(new JpaWorkflowModel(wfModel));
-		return saved.asWorkflowModel();
+    	try {
+			JpaWorkflowModel jpaEntity = new JpaWorkflowModel(wfModel);
+			JpaWorkflowModel saved = m_repo.save(jpaEntity);
+			return saved.asWorkflowModel();
+		}
+		catch ( DataIntegrityViolationException e ) {
+			throw new ResourceAlreadyExistsException("WorkflowModel", wfModel.getId());	
+		}
     }
 
 	public WorkflowModel addOrReplaceWorkflowModel(WorkflowModel wfModel) {

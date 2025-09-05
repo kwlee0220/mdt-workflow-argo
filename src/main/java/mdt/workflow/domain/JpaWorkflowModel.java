@@ -18,7 +18,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 
@@ -27,11 +26,7 @@ import jakarta.persistence.Table;
  * @author Kang-Woo Lee (ETRI)
  */
 @Entity
-@Table(
-	name="workflow_models",
-	indexes = {
-		@Index(name="id_idx", columnList="id", unique=true)
-	})
+@Table(name="workflow_models")
 @Getter @Setter
 public class JpaWorkflowModel {
 	@Id @GeneratedValue(strategy = GenerationType.AUTO)

@@ -362,6 +362,11 @@ public class MDTWorkflowManagerController {
 								.contentType(MediaType.APPLICATION_JSON)
 								.body(RESTfulErrorEntity.of(cause));
     	}
+    	else if ( cause instanceof IllegalArgumentException ) {
+    		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+								.contentType(MediaType.APPLICATION_JSON)
+								.body(RESTfulErrorEntity.of(cause));
+    	}
     	else {
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 								.contentType(MediaType.APPLICATION_JSON)
