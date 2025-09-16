@@ -42,6 +42,7 @@ import utils.http.RESTfulErrorEntity;
 import mdt.model.AASUtils;
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
+import mdt.model.instance.InstanceDescriptor;
 import mdt.workflow.Workflow;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.config.MDTWorkflowManagerConfiguration;
@@ -52,7 +53,6 @@ import mdt.workflow.service.MDTWorkflowManager;
 *
 * @author Kang-Woo Lee (ETRI)
 */
-@Tag(name = "MDTWorkflowManager", description = "MDT 워크플로우 관리 API")
 @RestController
 @RequestMapping(value={"/workflow-manager"})
 @Slf4j
@@ -61,6 +61,7 @@ public class MDTWorkflowManagerController {
 	@Autowired private MDTWorkflowManagerConfiguration m_conf;
 	@Autowired private MDTWorkflowManager m_wfManager;
 
+    @Tag(name = "워크플로우 모델 관리 API")
     @Operation(summary = "식별자에 해당하는 워크플로우 모델을 반환한다.")
     @Parameters({
     	@Parameter(name = "id", description = "검색할 MDTInstance 식별자")
@@ -79,6 +80,7 @@ public class MDTWorkflowManagerController {
 		return ResponseEntity.ok(wfModel);
     }
 
+    @Tag(name = "워크플로우 모델 관리 API")
     @Operation(summary = "등록된 모든 워크플로우 모델들을 반환한다.")
     @Parameters()
     @ApiResponses(value = {
@@ -95,6 +97,7 @@ public class MDTWorkflowManagerController {
     	return m_wfManager.getWorkflowModelAll();
     }
 
+    @Tag(name = "워크플로우 모델 관리 API")
     @Operation(summary = "워크플로우 관리자에 주어진 워크플로우 모델을 등록시킨다.")
     @Parameters({
     	@Parameter(name = "wfDescJson", description = "Json 형식으로 작성된 워크플로우 등록 정보"),
@@ -120,6 +123,7 @@ public class MDTWorkflowManagerController {
     	return wfModel;
     }
 
+    @Tag(name = "워크플로우 모델 관리 API")
     @Operation(summary = "식별자에 해당하는 워크플로우 모델을 삭제한다.")
     @Parameters({
     	@Parameter(name = "id", description = "삭제할 워크플로우 등록 정보 식별자")
@@ -134,6 +138,8 @@ public class MDTWorkflowManagerController {
     public void removeWorkflowModel(@PathVariable("id") String id) {
     	m_wfManager.removeWorkflowModel(id);
     }
+
+    @Tag(name = "워크플로우 모델 관리 API")
     @Operation(summary = "등록된 모든 워크플로우 모델을 삭제한다.")
     @ApiResponses(value = {
     	@ApiResponse(responseCode = "204", description = "성공")
@@ -144,6 +150,7 @@ public class MDTWorkflowManagerController {
     	Try.run(m_wfManager::removeWorkflowModelAll);
     }
 
+    @Tag(name = "워크플로우 모델 관리 API")
     @Operation(summary = "식별자에 해당하는 워크플로우 정보를 Argo 워크플로우 구동 스크립트로 변환하여 반환한다.")
     @Parameters({
     	@Parameter(name = "id", description = "변환시킬 워크플로우 등록 정보 식별자")
@@ -166,13 +173,28 @@ public class MDTWorkflowManagerController {
     	
 		return m_wfManager.getWorkflowScript(id, mdtEndpoint, clientImage);
     }
-    
+
+    @Tag(name = "실행시간 예측 API")
+    @Operation(summary = "AI 또는 Simulation 작업의 실행시간을 예측한다.")
+    @Parameters({
+    	@Parameter(name = "smRef", description="예측 대상 AI 또는 Simulation 서브모델 참조 표현식. ",
+    				example = "test:AddAndSleep")
+    })
+    @ApiResponses(value = {
+    	@ApiResponse(responseCode="200", description="성공",
+    		content = {
+    			@Content(schema = @Schema(implementation = Float.class), mediaType="application/json")
+    		}
+    	),
+    	@ApiResponse(responseCode = "404", description = "서브모델 참조 표현식에 해당하는 서브모델이 존재하지 않은 경우.")
+    })
     @PostMapping("/execution-times/tasks/{smRef}")
     public Double estimateTaskExecutionTime(@PathVariable("smRef") String smId) {
     	return 11.5;
     }
 
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "생성된 모든 워크플로우 인스턴스들을 반환한다.")
     @Parameters()
     @ApiResponses(value = {
@@ -201,6 +223,7 @@ public class MDTWorkflowManagerController {
 		}
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "식별자에 해당하는 워크플로우 인스턴스를 반환한다.")
     @Parameters({
     	@Parameter(name = "id", description = "검색할 워크플로우 인스턴스 식별자")
@@ -218,6 +241,7 @@ public class MDTWorkflowManagerController {
 		return m_wfManager.getWorkflow(wfId);
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "워크플로우 관리자에 등록된 워크플로우 모델을 이용하여 새로운 워크플로우를 시작시킨다.")
     @Parameters({
     	@Parameter(name = "wfModelId", description = "워크플로우 모델 식별자"),
@@ -236,6 +260,7 @@ public class MDTWorkflowManagerController {
 		return m_wfManager.startWorkflow(wfModelId);
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "동작 중인 워크플로우를 종료시킨다.")
     @Parameters({
     	@Parameter(name = "wfId", description = "워크플로우 인스턴스 식별자"),
@@ -254,6 +279,7 @@ public class MDTWorkflowManagerController {
 		m_wfManager.stopWorkflow(wfId);
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "식별자에 해당하는 워크플로우 인스턴스를 수행 중지시킨다.")
     @Parameters({
     	@Parameter(name = "wfId", description = "중지시킬 워크플로우 인스턴스 식별자")
@@ -271,6 +297,7 @@ public class MDTWorkflowManagerController {
 		return m_wfManager.suspendWorkflow(wfId);
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "수행 중지된 워크플로우 인스턴스를 재개시킨다.")
     @Parameters({
     	@Parameter(name = "wfId", description = "재개시킬 워크플로우 인스턴스 식별자")
@@ -288,6 +315,7 @@ public class MDTWorkflowManagerController {
 		return m_wfManager.resumeWorkflow(wfId);
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "워크플로우 인스턴스를 삭제시킨다.")
     @Parameters({
     	@Parameter(name = "wfId", description = "삭제시킬 워크플로우 인스턴스 식별자")
@@ -305,6 +333,7 @@ public class MDTWorkflowManagerController {
 		m_wfManager.removeWorkflow(wfId);
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "모든 워크플로우 인스턴스를 삭제시킨다.")
     @ApiResponses(value = {
     	@ApiResponse(responseCode = "200", description = "성공",
@@ -330,6 +359,7 @@ public class MDTWorkflowManagerController {
     	}
 	}
 
+    @Tag(name = "워크플로우 인스턴스 관리 API")
     @Operation(summary = "주어진 POD에서 수행 중인 워크플로우 인스턴스의 로그 정보를 조회한다.")
     @Parameters({
     	@Parameter(name = "wfId", description = "삭제시킬 워크플로우 인스턴스 식별자"),
