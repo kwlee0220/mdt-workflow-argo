@@ -75,7 +75,11 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, Init
 			IoArgoprojWorkflowV1alpha1WorkflowList wfList
 								= m_wfApi.workflowServiceListWorkflows(m_namespace, null, null, null, null, null,
 																		null, null, null, null, null, null, null);
+			
 			return FStream.from(wfList.getItems())
+					
+							.filter(argoWf -> !wfList.getItems().get(0).getSpec().getTemplates().isEmpty())
+					
 							// 가끔 dag가 정의되지 않는 workflow가 존재하고,
 							// 이런 경우 제외시킨다.
 							.filter(argoWf -> argoWf.getSpec().getTemplates().get(0).getDag() != null)
