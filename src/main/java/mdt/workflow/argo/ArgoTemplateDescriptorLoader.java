@@ -59,7 +59,7 @@ public class ArgoTemplateDescriptorLoader {
 		return new ArgoContainerTemplateDescriptor(task.getId()+"-template", container);
 	}
 	
-	private static final String MDT_CLIENT_JAR_FILE = "mdt-client-all.jar";
+	private static final String MDT_CLIENT_JAR_FILE = "../mdt-client-all.jar";
 	
 	private ContainerDescriptor toContainerDescriptor(TaskDescriptor task) {
 		String taskType = task.getType();
