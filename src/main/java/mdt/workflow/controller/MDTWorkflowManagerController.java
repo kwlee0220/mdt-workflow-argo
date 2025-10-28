@@ -42,7 +42,6 @@ import utils.http.RESTfulErrorEntity;
 import mdt.model.AASUtils;
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
-import mdt.model.instance.InstanceDescriptor;
 import mdt.workflow.Workflow;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.config.MDTWorkflowManagerConfiguration;
@@ -188,8 +187,9 @@ public class MDTWorkflowManagerController {
     	),
     	@ApiResponse(responseCode = "404", description = "서브모델 참조 표현식에 해당하는 서브모델이 존재하지 않은 경우.")
     })
-    @PostMapping("/execution-times/tasks/{smRef}")
-    public Double estimateTaskExecutionTime(@PathVariable("smRef") String smId) {
+    @PostMapping("/execution-times/{smRef}")
+    public Double estimateTaskExecutionTime(@PathVariable("smRef") String smRefString) {
+    	System.out.println("estimateTaskExecutionTime: smRef=" + smRefString);
     	return 11.5;
     }
 
