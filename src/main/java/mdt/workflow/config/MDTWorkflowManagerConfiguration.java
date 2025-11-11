@@ -20,4 +20,6 @@ public class MDTWorkflowManagerConfiguration {
 	private String m_argoNamespace;
 	private String m_mdtEndpoint;
 	private String m_clientDockerImage;
+	
+	private String m_executionTimeEstimatorEndpoint;
 }

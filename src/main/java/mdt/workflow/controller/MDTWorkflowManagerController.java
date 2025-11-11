@@ -3,6 +3,7 @@ package mdt.workflow.controller;
 import java.util.Collections;
 import java.util.List;
 
+import org.eclipse.digitaltwin.aas4j.v3.model.Submodel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -37,11 +38,17 @@ import lombok.extern.slf4j.Slf4j;
 import utils.Throwables;
 import utils.func.FOption;
 import utils.func.Try;
+import utils.http.HttpRESTfulClient;
 import utils.http.RESTfulErrorEntity;
 
+import mdt.client.HttpMDTManager;
+import mdt.client.instance.HttpMDTInstanceManager;
 import mdt.model.AASUtils;
+import mdt.model.MDTModelSerDe;
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
+import mdt.model.expr.MDTExpressionParser;
+import mdt.model.sm.ref.MDTSubmodelReference;
 import mdt.workflow.Workflow;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.config.MDTWorkflowManagerConfiguration;
@@ -172,6 +179,8 @@ public class MDTWorkflowManagerController {
     	
 		return m_wfManager.getWorkflowScript(id, mdtEndpoint, clientImage);
     }
+    
+	private static final okhttp3.MediaType JSON_TYPE = okhttp3.MediaType.parse("application/json; charset=utf-8");
 
     @Tag(name = "실행시간 예측 API")
     @Operation(summary = "AI 또는 Simulation 작업의 실행시간을 예측한다.")
@@ -190,7 +199,21 @@ public class MDTWorkflowManagerController {
     @PostMapping("/execution-times/{smRef}")
     public Double estimateTaskExecutionTime(@PathVariable("smRef") String smRefString) {
     	System.out.println("estimateTaskExecutionTime: smRef=" + smRefString);
-    	return 11.5;
+    	
+    	HttpMDTManager mdt = HttpMDTManager.connect(m_conf.getMdtEndpoint());
+    	HttpMDTInstanceManager manager = mdt.getInstanceManager();
+    	
+    	MDTSubmodelReference smRef = MDTExpressionParser.parseSubmodelReference(smRefString).evaluate();
+    	smRef.activate(manager);
+    	Submodel sm = smRef.get().getSubmodel();
+		String smJsonStr = MDTModelSerDe.toJsonString(sm);
+		
+		okhttp3.RequestBody reqBody = okhttp3.RequestBody.create(smJsonStr, JSON_TYPE);
+    	HttpRESTfulClient client = HttpRESTfulClient.newDefaultClient();
+    	String respBody = client.put(m_conf.getExecutionTimeEstimatorEndpoint(), reqBody,
+    									HttpRESTfulClient.STRING_DESER);
+    	
+    	return Double.valueOf(respBody);
     }
 
 

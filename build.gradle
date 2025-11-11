@@ -43,6 +43,9 @@ dependencies {
 	
 	// HTTP Client
 	implementation "com.squareup.okhttp3:okhttp:${okhttp_version}"
+	
+	// AAS model
+	implementation "org.eclipse.digitaltwin.aas4j:aas4j-model:${aas4j_version}"
 
     // SpringBoot dependencies
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
