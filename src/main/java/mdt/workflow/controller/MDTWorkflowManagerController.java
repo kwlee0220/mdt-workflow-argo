@@ -210,7 +210,7 @@ public class MDTWorkflowManagerController {
 		
 		okhttp3.RequestBody reqBody = okhttp3.RequestBody.create(smJsonStr, JSON_TYPE);
     	HttpRESTfulClient client = HttpRESTfulClient.newDefaultClient();
-    	String respBody = client.put(m_conf.getExecutionTimeEstimatorEndpoint(), reqBody,
+    	String respBody = client.post(m_conf.getExecutionTimeEstimatorEndpoint(), reqBody,
     									HttpRESTfulClient.STRING_DESER);
     	
     	return Double.valueOf(respBody);
