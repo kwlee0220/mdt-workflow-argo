@@ -15,8 +15,8 @@ import lombok.experimental.UtilityClass;
 import utils.KeyedValueList;
 import utils.Utilities;
 import utils.func.FOption;
+import utils.func.Optionals;
 import utils.stream.FStream;
-import utils.stream.KeyValueFStream;
 
 import mdt.workflow.NodeTask;
 import mdt.workflow.Workflow;
@@ -75,18 +75,31 @@ public class ArgoUtils {
 		String wfName = argoWf.getMetadata().getName();
 		
 		List<NodeTask> nodeTaskList
-					= taskDescList.fstream()
-				                    .outerJoin(KeyValueFStream.from(taskStatusMap))
-				    		        .map(kv -> {
-				    		        	var pair = kv.value();
-				    		        	TaskDescriptor desc = getFirst(pair._1());
-				    		        	IoArgoprojWorkflowV1alpha1NodeStatus status = getFirst(pair._2());
-				    		        	List<String> statusDeps = (status != null)
-				    		        							? statusDependencies.get(status.getDisplayName())
-				    		        							: null;
-				    		        	return toNodeTask(desc, status, statusDeps);
-				    		        })
-				    		        .toList();
+			 = taskDescList.fstream()
+							.match(taskStatusMap, true)
+							.values()
+							.map(match -> {
+								TaskDescriptor desc = match._1;
+								IoArgoprojWorkflowV1alpha1NodeStatus status = match._2;
+								List<String> statusDeps = Optionals.map(status,
+																		s -> statusDependencies.get(s.getDisplayName()));
+								return toNodeTask(desc, status, statusDeps);
+							})
+							.toList();
+		
+//		List<NodeTask> nodeTaskList
+//					= taskDescList.fstream()
+//				                    .outerJoin(KeyValueFStream.from(taskStatusMap))
+//				    		        .map(kv -> {
+//				    		        	var pair = kv.value();
+//				    		        	TaskDescriptor desc = getFirst(pair._1());
+//				    		        	IoArgoprojWorkflowV1alpha1NodeStatus status = getFirst(pair._2());
+//				    		        	List<String> statusDeps = (status != null)
+//				    		        							? statusDependencies.get(status.getDisplayName())
+//				    		        							: null;
+//				    		        	return toNodeTask(desc, status, statusDeps);
+//				    		        })
+//				    		        .toList();
 		
 		LocalDateTime created = FOption.map(argoWf.getMetadata().getCreationTimestamp(), OffsetDateTime::toLocalDateTime);
 		LocalDateTime started = FOption.map(argoWf.getStatus().getStartedAt(), OffsetDateTime::toLocalDateTime);

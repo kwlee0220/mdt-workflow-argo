@@ -7,8 +7,13 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
+import utils.Throwables;
+import utils.func.Try;
+import utils.func.Unchecked;
+
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
+import mdt.workflow.MDTWorkflowInstanceManagerException;
 import mdt.workflow.Workflow;
 import mdt.workflow.WorkflowInstanceManager;
 import mdt.workflow.WorkflowManager;
@@ -37,17 +42,48 @@ public class MDTWorkflowManager implements WorkflowManager {
 	
 	@Override
 	public WorkflowModel addWorkflowModel(WorkflowModel desc) throws ResourceAlreadyExistsException {
-		return m_modelManager.addWorkflowModel(desc);
+		WorkflowModel wfModel = m_modelManager.addWorkflowModel(desc);
+		try {
+			onWorkflowModelAdded(wfModel);
+			return wfModel;
+		}
+		catch ( Throwable e ) {
+			Try.run(() -> m_modelManager.removeWorkflowModel(wfModel.getId()));
+			
+			Throwable cause = Throwables.unwrapThrowable(e);
+			throw new RuntimeException("failed to process added workflow model: " + wfModel.getId(), cause);
+		}
 	}
 	
 	@Override
 	public WorkflowModel addOrReplaceWorkflowModel(WorkflowModel desc) {
-		return m_modelManager.addOrReplaceWorkflowModel(desc);
+		WorkflowModel wfModel = m_modelManager.addOrReplaceWorkflowModel(desc);
+		try {
+			onWorkflowModelAdded(wfModel);
+			return wfModel;
+		}
+		catch ( Throwable e ) {
+			Try.run(() -> m_modelManager.removeWorkflowModel(wfModel.getId()));
+			
+			Throwable cause = Throwables.unwrapThrowable(e);
+			throw new RuntimeException("failed to process added workflow model: " + wfModel.getId(), cause);
+		}
+	}
+
+	@Override
+	public void onWorkflowModelAdded(WorkflowModel wfModel) {
+		m_instanceManager.onWorkflowModelAdded(wfModel);
+	}
+
+	@Override
+	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException {
+		m_instanceManager.onWorkflowModelRemoved(wfModelId);
 	}
 	
 	@Override
 	public void removeWorkflowModel(String wfModelId) throws ResourceNotFoundException {
 		m_modelManager.removeWorkflowModel(wfModelId);
+		Unchecked.acceptOrIgnore(wfModelId, this::onWorkflowModelRemoved);
 	}
 	
 	@Override

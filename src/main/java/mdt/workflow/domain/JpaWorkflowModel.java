@@ -8,17 +8,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
 import lombok.Setter;
 
-import utils.InternalException;
-
-import mdt.model.MDTModelSerDe;
-import mdt.workflow.WorkflowModel;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import utils.InternalException;
+
+import mdt.model.MDTModelSerDe;
+import mdt.workflow.WorkflowModel;
 
 
 /**
@@ -54,7 +54,8 @@ public class JpaWorkflowModel {
 	public WorkflowModel asWorkflowModel() {
 		try {
 			String jsonModel = new String(jsonModelBytes, StandardCharsets.UTF_8);
-			return MDTModelSerDe.readValue(jsonModel, WorkflowModel.class);
+			WorkflowModel wfModel =  MDTModelSerDe.readValue(jsonModel, WorkflowModel.class);
+			return  wfModel;
 		}
 		catch ( IOException e ) {
 			throw new InternalException(e);

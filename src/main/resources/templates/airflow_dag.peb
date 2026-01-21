@@ -1,0 +1,49 @@
+from airflow.sdk import dag, task
+from mdtpy.airflow import AASOperationTaskInvocation, SetElementInvocation
+from mdtpy.airflow import task_output, reference, literal
+
+
+@dag(
+  description="{{ dag.description }}",
+  tags=["mdt"]
+)
+def {{ dag.id }}():
+{% for task in dag.tasks %}
+  @task
+  def {{ task.taskId }}() -> None:
+{% if task.getTaskType() == "AASOperationTaskSpec" %}
+    AASOperationTaskInvocation(
+      instance = "{{ task.instanceId }}",
+      submodel = "{{ task.submodelId }}",
+{% elseif task.getTaskType() == "SetTaskSpec" %}
+    SetElementInvocation(
+{% endif %}
+      argument_specs = {
+        'inputs': {
+{% for arg in task.inputs %}
+          {{ arg.pythonStatement }}{% if not loop.last %},{% endif %}
+          
+{% endfor %}
+        },
+        'outputs': {
+{% for arg in task.outputs %}
+          {{ arg.pythonStatement }}{% if not loop.last %},{% endif %}
+{% endfor %}
+
+        }
+      }
+    ).run()
+    
+{% endfor %}
+
+{% for task in dag.tasks %}
+  t_{{ task.taskId }} = {{ task.taskId }}()
+{% endfor %}
+
+{% for task in dag.tasks %}
+{% for precedent in task.dependencies %}
+  t_{{ precedent }} >> t_{{ task.taskId }} 
+{% endfor %}
+{% endfor %}
+
+{{ dag.id }}()

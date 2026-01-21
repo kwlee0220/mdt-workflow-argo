@@ -1,0 +1,147 @@
+{
+  "id" : "thickness-simulation-short",
+  "name" : "냉장고 내함 두께 불량을 탐지 워크플로우",
+  "description" : "본 워크플로우는 냉장고의 내함 두께 불량을 탐지한다.",
+  "taskDescriptors" : [ {
+    "id" : "inspect-thickness",
+    "type" : "mdt.task.builtin.AASOperationTask",
+    "dependencies" : [ ],
+    "inputVariables" : [ {
+      "@type" : "mdt:variable:reference",
+      "name" : "UpperImage",
+      "description" : "",
+      "reference" : {
+        "@type" : "mdt:ref:param",
+        "instanceId" : "inspector",
+        "parameterExpr" : "UpperImage"
+      }
+    } ],
+    "outputVariables" : [ {
+      "@type" : "mdt:variable:reference",
+      "name" : "Defect",
+      "description" : "",
+      "reference" : {
+        "@type" : "mdt:ref:oparg",
+        "submodelReference" : {
+          "instanceId" : "inspector",
+          "submodelIdShort" : "ThicknessInspection"
+        },
+        "kind" : "output",
+        "argumentSpec" : "Defect"
+      }
+    } ],
+    "options" : [ {
+      "name" : "loglevel",
+      "value" : "info"
+    }, {
+      "name" : "poll",
+      "value" : "1s"
+    }, {
+      "name" : "operation",
+      "value" : "inspector:ThicknessInspection:Operation"
+    }, {
+      "name" : "timeout",
+      "value" : "1m"
+    } ],
+    "labels" : [ {
+      "name" : "mdt-operation",
+      "value" : "inspector:ThicknessInspection"
+    } ]
+  }, {
+    "id" : "update-defect-list",
+    "type" : "mdt.task.builtin.AASOperationTask",
+    "dependencies" : [ "inspect-thickness" ],
+    "inputVariables" : [ {
+      "@type" : "mdt:variable:reference",
+      "name" : "Defect",
+      "description" : "",
+      "reference" : {
+        "@type" : "mdt:ref:oparg",
+        "submodelReference" : {
+          "instanceId" : "inspector",
+          "submodelIdShort" : "ThicknessInspection"
+        },
+        "kind" : "output",
+        "argumentSpec" : "Defect"
+      }
+    }, {
+      "@type" : "mdt:variable:reference",
+      "name" : "DefectList",
+      "description" : "",
+      "reference" : {
+        "@type" : "mdt:ref:param",
+        "instanceId" : "inspector",
+        "parameterExpr" : "DefectList"
+      }
+    } ],
+    "outputVariables" : [ {
+      "@type" : "mdt:variable:reference",
+      "name" : "UpdatedDefectList",
+      "description" : "",
+      "reference" : {
+        "@type" : "mdt:ref:param",
+        "instanceId" : "inspector",
+        "parameterExpr" : "DefectList"
+      }
+    } ],
+    "options" : [ {
+      "name" : "loglevel",
+      "value" : "info"
+    }, {
+      "name" : "poll",
+      "value" : "1s"
+    }, {
+      "name" : "operation",
+      "value" : "inspector:UpdateDefectList:Operation"
+    }, {
+      "name" : "timeout",
+      "value" : "1m"
+    } ],
+    "labels" : [ {
+      "name" : "mdt-operation",
+      "value" : "inspector:UpdateDefectList"
+    } ]
+  }, {
+    "id" : "simulate-process",
+    "type" : "mdt.task.builtin.AASOperationTask",
+    "dependencies" : [ "update-defect-list" ],
+    "inputVariables" : [ {
+      "@type" : "mdt:variable:reference",
+      "name" : "DefectList",
+      "description" : null,
+      "reference" : {
+        "@type" : "mdt:ref:param",
+        "instanceId" : "inspector",
+        "parameterExpr" : "DefectList"
+      }
+    } ],
+    "outputVariables" : [ {
+      "@type" : "mdt:variable:reference",
+      "name" : "AverageCycleTime",
+      "description" : null,
+      "reference" : {
+        "@type" : "mdt:ref:param",
+        "instanceId" : "inspector",
+        "parameterExpr" : "CycleTime"
+      }
+    } ],
+    "options" : [ {
+      "name" : "loglevel",
+      "value" : "info"
+    }, {
+      "name" : "poll",
+      "value" : "1s"
+    }, {
+      "name" : "operation",
+      "value" : "inspector:ProcessSimulation:Operation"
+    }, {
+      "name" : "timeout",
+      "value" : "1m"
+    } ],
+    "labels" : [ {
+      "name" : "mdt-operation",
+      "value" : "inspector:ProcessSimulation"
+    } ]
+  } ],
+  "gui" : { }
+}

@@ -6,5 +6,5 @@ project(':utils').projectDir = file('../../common/utils')
 include ':mdt-client'
 project(':mdt-client').projectDir = file('../mdt-client')
 
-include ':argo-java-client'
-project(':argo-java-client').projectDir = file('../../misc/argo-java-client')
+// include ':argo-java-client'
+// project(':argo-java-client').projectDir = file('../../misc/argo-java-client')

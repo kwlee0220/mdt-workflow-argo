@@ -51,7 +51,7 @@ import mdt.model.expr.MDTExpressionParser;
 import mdt.model.sm.ref.MDTSubmodelReference;
 import mdt.workflow.Workflow;
 import mdt.workflow.WorkflowModel;
-import mdt.workflow.config.MDTWorkflowManagerConfiguration;
+import mdt.workflow.config.ArgoWorkflowManagerConfiguration;
 import mdt.workflow.service.MDTWorkflowManager;
 
 
@@ -64,7 +64,7 @@ import mdt.workflow.service.MDTWorkflowManager;
 @Slf4j
 @RequiredArgsConstructor
 public class MDTWorkflowManagerController {
-	@Autowired private MDTWorkflowManagerConfiguration m_conf;
+	@Autowired private ArgoWorkflowManagerConfiguration m_conf;
 	@Autowired private MDTWorkflowManager m_wfManager;
 
     @Tag(name = "워크플로우 모델 관리 API")

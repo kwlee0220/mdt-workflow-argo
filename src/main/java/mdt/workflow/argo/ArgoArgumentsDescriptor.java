@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.Lists;
 
-import utils.func.FOption;
+import utils.func.Optionals;
 
 import mdt.model.NameValue;
 
@@ -22,7 +22,7 @@ public class ArgoArgumentsDescriptor {
 	
 	@JsonCreator
 	public ArgoArgumentsDescriptor(@JsonProperty("parameters") List<NameValue> parameters) {
-		m_parameters = FOption.getOrElse(parameters, Lists::newArrayList);
+		m_parameters = Optionals.getOrElse(parameters, Lists::newArrayList);
 	}
 	
 	public List<NameValue> getParameters() {

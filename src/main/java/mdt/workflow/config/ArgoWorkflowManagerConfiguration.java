@@ -12,10 +12,10 @@ import lombok.experimental.Accessors;
  * @author Kang-Woo Lee (ETRI)
  */
 @Configuration
-@ConfigurationProperties(prefix = "mdt.workflow-manager")
+@ConfigurationProperties(prefix = "mdt.workflow-manager.argo")
 @Getter @Setter
 @Accessors(prefix = "m_")
-public class MDTWorkflowManagerConfiguration {
+public class ArgoWorkflowManagerConfiguration {
 	private String m_argoEndpoint;
 	private String m_argoNamespace;
 	private String m_mdtEndpoint;

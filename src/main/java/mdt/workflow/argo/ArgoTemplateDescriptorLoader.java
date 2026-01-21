@@ -2,18 +2,26 @@ package mdt.workflow.argo;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.collect.Lists;
 
 import utils.func.Funcs;
 import utils.stream.FStream;
+import utils.stream.KeyValueFStream;
 
 import mdt.model.NameValue;
-import mdt.model.sm.variable.AbstractVariable.ReferenceVariable;
-import mdt.model.sm.variable.AbstractVariable.ValueVariable;
-import mdt.model.sm.variable.Variable;
+import mdt.task.builtin.AASOperationTask;
+import mdt.task.builtin.HttpTask;
+import mdt.task.builtin.ProgramTask;
+import mdt.task.builtin.SetTask;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.argo.ArgoContainerTemplateDescriptor.ContainerDescriptor;
 import mdt.workflow.argo.ArgoDagTemplateDescriptor.DagDescriptor;
+import mdt.workflow.model.ArgumentSpec;
+import mdt.workflow.model.ArgumentSpec.LiteralArgumentSpec;
+import mdt.workflow.model.ArgumentSpec.ReferenceArgumentSpec;
 import mdt.workflow.model.Option;
 import mdt.workflow.model.TaskDescriptor;
 
@@ -22,6 +30,8 @@ import mdt.workflow.model.TaskDescriptor;
  * @author Kang-Woo Lee (ETRI)
  */
 public class ArgoTemplateDescriptorLoader {
+	private static final Logger s_logger = LoggerFactory.getLogger(ArgoTemplateDescriptorLoader.class);
+	
 //	private static final String MDT_CLIENT_IMAGE_ID = "kwlee0220/mdt-client";
 	private static final List<String> COMMAND_JAVA = List.of("java");
 	
@@ -62,18 +72,38 @@ public class ArgoTemplateDescriptorLoader {
 	private static final String MDT_CLIENT_JAR_FILE = "../mdt-client-all.jar";
 	
 	private ContainerDescriptor toContainerDescriptor(TaskDescriptor task) {
-		String taskType = task.getType();
+		List<String> args = Lists.newArrayList("-cp", MDT_CLIENT_JAR_FILE, "mdt.cli.MDTCommandsMain", "run");
 		
-		List<String> args = Lists.newArrayList("-cp", MDT_CLIENT_JAR_FILE, taskType + "Command");
-
-		for ( Variable inVar: task.getInputVariables() ) {
-			args.add(String.format("--in.%s", inVar.getName()));
-			args.add(toVariableString(inVar));
+		String taskType = task.getType();
+		if ( SetTask.class.getName().equals(taskType) ) {
+			args.add("set");
 		}
-		for ( Variable outVar: task.getOutputVariables() ) {
-			args.add(String.format("--out.%s", outVar.getName()));
-			args.add(toVariableString(outVar));
+		else {
+			args.add("submodel"); args.add(task.getSubmodelRef().toStringExpr());
+			if ( AASOperationTask.class.getName().equals(taskType) ) {
+				args.add("aas");
+			}
+			else if ( HttpTask.class.getName().equals(taskType) ) {
+				args.add("http");
+			}
+			else if ( ProgramTask.class.getName().equals(taskType) ) {
+				args.add("program");
+			}
+			else {
+				throw new IllegalArgumentException("Unsupported task type: " + taskType);
+			}
 		}
+		
+		KeyValueFStream.from(task.getInputArgumentSpecs())
+						.forEach((id, arg) -> {
+							args.add(String.format("--in.%s", id));
+							args.add(toArgumentSpecString(arg));
+						});
+		KeyValueFStream.from(task.getOutputArgumentSpecs())
+						.forEach((id, arg) -> {
+							args.add(String.format("--out.%s", id));
+							args.add(toArgumentSpecString(arg));
+						});
 		
 		for ( Option opt: task.getOptions().values() ) {
 			// option의 이름이 timeout인 경우 null 또는 ""인 경우에는 argument 로 추가하지 않음.
@@ -91,28 +121,31 @@ public class ArgoTemplateDescriptorLoader {
 			new NameValue("MDT_ENDPOINT", m_mdtEndpoint)
 		);
 
+//		String argsStr = FStream.from(args).drop(2).join(' ');
+//		System.out.println("java -cp $MDT_HOME/mdt-client/mdt-client-all.jar " + argsStr);
+
 		return new ContainerDescriptor(m_mdtClientImageName, COMMAND_JAVA, args, environs);
 	}
 	
 	private void addSetTaskParameters(TaskDescriptor task, List<String> args) {
-		Variable tar = task.getOutputVariables().getOfKey("target");
-		args.add(toVariableString(tar));
+		ArgumentSpec tar = task.getOutputArgumentSpecs().get("target");
+		args.add(toArgumentSpecString(tar));
 		
-		Variable src = task.getInputVariables().getOfKey("source");
+		ArgumentSpec src = task.getInputArgumentSpecs().get("source");
 		args.add("--value");
-		args.add(toVariableString(src));
+		args.add(toArgumentSpecString(src));
 	}
 	private void addSetTaskOptions(TaskDescriptor task, List<String> args) { }
 	
-	private String toVariableString(Variable var) {
-		if ( var instanceof ReferenceVariable refVar ) {
-			return refVar.getReference().toStringExpr();
+	private String toArgumentSpecString(ArgumentSpec spec) {
+		if ( spec instanceof ReferenceArgumentSpec refSpec ) {
+			return refSpec.getElementReference().toStringExpr();
 		}
-		if ( var instanceof ValueVariable vvar ) {
-			return vvar.readValue().toString();
+		if ( spec instanceof LiteralArgumentSpec litSpec ) {
+			return litSpec.readValue().toString();
 		}
 		else {
-			throw new IllegalArgumentException("Invalid TaskPort type: " + var.getClass());
+			throw new IllegalArgumentException("Invalid TaskPort type: " + spec.getClass());
 		}
 	}
 }

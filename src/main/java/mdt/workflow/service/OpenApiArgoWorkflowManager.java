@@ -30,13 +30,14 @@ import utils.stream.FStream;
 
 import mdt.model.MDTModelSerDe;
 import mdt.model.ResourceNotFoundException;
+import mdt.workflow.MDTWorkflowInstanceManagerException;
 import mdt.workflow.MDTWorkflowManagerException;
 import mdt.workflow.Workflow;
 import mdt.workflow.WorkflowInstanceManager;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.argo.ArgoUtils;
 import mdt.workflow.argo.ArgoWorkflowDescriptor;
-import mdt.workflow.config.MDTWorkflowManagerConfiguration;
+import mdt.workflow.config.ArgoWorkflowManagerConfiguration;
 import mdt.workflow.model.TaskDescriptor;
 
 
@@ -44,7 +45,7 @@ import mdt.workflow.model.TaskDescriptor;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-@Service
+//@Service
 @RequiredArgsConstructor
 public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, InitializingBean {
 	private static final IoArgoprojWorkflowV1alpha1WorkflowStopRequest STOP_REQUEST
@@ -55,7 +56,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, Init
 															= new IoArgoprojWorkflowV1alpha1WorkflowResumeRequest();
 	
 	private final JpaWorkflowModelManager m_wfModelManager;
-	private final MDTWorkflowManagerConfiguration m_conf;
+	private final ArgoWorkflowManagerConfiguration m_conf;
 	
 	private String m_namespace;
 	private WorkflowServiceApi m_wfApi;
@@ -68,6 +69,12 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, Init
 	    client.setBasePath(m_conf.getArgoEndpoint());
 	    m_wfApi = new WorkflowServiceApi(client);
 	}
+
+	@Override
+	public void onWorkflowModelAdded(WorkflowModel wfModel) throws MDTWorkflowInstanceManagerException { }
+
+	@Override
+	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException { }
 
 	@Override
 	public List<Workflow> getWorkflowAll() {

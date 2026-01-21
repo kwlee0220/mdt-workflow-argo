@@ -10,7 +10,7 @@ import com.google.common.base.Preconditions;
 
 import lombok.NonNull;
 
-import utils.func.FOption;
+import utils.func.Optionals;
 import utils.stream.FStream;
 
 import mdt.model.MDTModelSerDe;
@@ -52,7 +52,7 @@ public class ArgoTaskDescriptor {
 	
 	@Override
 	public String toString() {
-		String depsStr = FStream.from(FOption.getOrElse(m_dependencies, Set.of())).join(", ");
+		String depsStr = FStream.from(Optionals.getOrElse(m_dependencies, Set::of)).join(", ");
 		return String.format("%s (dependents: {%s})", m_name, depsStr);
 	}
 
