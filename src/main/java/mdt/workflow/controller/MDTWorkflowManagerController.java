@@ -36,14 +36,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import utils.Throwables;
-import utils.func.FOption;
 import utils.func.Try;
 import utils.http.HttpRESTfulClient;
 import utils.http.RESTfulErrorEntity;
 
 import mdt.client.HttpMDTManager;
 import mdt.client.instance.HttpMDTInstanceManager;
-import mdt.model.AASUtils;
 import mdt.model.MDTModelSerDe;
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
@@ -170,14 +168,8 @@ public class MDTWorkflowManagerController {
     })
     @GetMapping("/models/{id}/script")
     @ResponseStatus(HttpStatus.OK)
-    public String getArgoWorklfowScript(@PathVariable("id") String id,
-										@RequestParam(name="mdt-endpoint", required=false) String mdtEndpoint,
-										@RequestParam(name="client-docker-image", required=false) String clientImage)
-    	throws JsonProcessingException {
-    	mdtEndpoint = FOption.mapOrElse(mdtEndpoint, AASUtils::decodeBase64UrlSafe, m_conf.getMdtEndpoint());
-    	clientImage = FOption.mapOrElse(clientImage, AASUtils::decodeBase64UrlSafe, m_conf.getClientDockerImage());
-    	
-		return m_wfManager.getWorkflowScript(id, mdtEndpoint, clientImage);
+    public String getArgoWorklfowScript(@PathVariable("id") String id) throws JsonProcessingException {
+		return m_wfManager.getWorkflowScript(id);
     }
     
 	private static final okhttp3.MediaType JSON_TYPE = okhttp3.MediaType.parse("application/json; charset=utf-8");
@@ -200,7 +192,7 @@ public class MDTWorkflowManagerController {
     public Double estimateTaskExecutionTime(@PathVariable("smRef") String smRefString) {
     	System.out.println("estimateTaskExecutionTime: smRef=" + smRefString);
     	
-    	HttpMDTManager mdt = HttpMDTManager.connect(m_conf.getMdtEndpoint());
+    	HttpMDTManager mdt = HttpMDTManager.connect(m_conf.getMdtUrl());
     	HttpMDTInstanceManager manager = mdt.getInstanceManager();
     	
     	MDTSubmodelReference smRef = MDTExpressionParser.parseSubmodelReference(smRefString).evaluate();

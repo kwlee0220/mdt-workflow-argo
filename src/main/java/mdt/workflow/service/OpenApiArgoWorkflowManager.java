@@ -17,8 +17,11 @@ import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1WorkflowStopReque
 import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1WorkflowSuspendRequest;
 import org.openapitools.client.model.StreamResultOfIoArgoprojWorkflowV1alpha1LogEntry;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
@@ -33,8 +36,9 @@ import mdt.model.ResourceNotFoundException;
 import mdt.workflow.MDTWorkflowInstanceManagerException;
 import mdt.workflow.MDTWorkflowManagerException;
 import mdt.workflow.Workflow;
-import mdt.workflow.WorkflowInstanceManager;
+import mdt.workflow.WorkflowInstanceManagerProvider;
 import mdt.workflow.WorkflowModel;
+import mdt.workflow.WorkflowStatus;
 import mdt.workflow.argo.ArgoUtils;
 import mdt.workflow.argo.ArgoWorkflowDescriptor;
 import mdt.workflow.config.ArgoWorkflowManagerConfiguration;
@@ -47,7 +51,7 @@ import mdt.workflow.model.TaskDescriptor;
  */
 //@Service
 @RequiredArgsConstructor
-public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, InitializingBean {
+public class OpenApiArgoWorkflowManager implements WorkflowInstanceManagerProvider, InitializingBean {
 	private static final IoArgoprojWorkflowV1alpha1WorkflowStopRequest STOP_REQUEST
 															= new IoArgoprojWorkflowV1alpha1WorkflowStopRequest();
 	private static final IoArgoprojWorkflowV1alpha1WorkflowSuspendRequest SUSPEND_REQUEST
@@ -71,10 +75,39 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, Init
 	}
 
 	@Override
-	public void onWorkflowModelAdded(WorkflowModel wfModel) throws MDTWorkflowInstanceManagerException { }
+	public List<String> listWorkflowIds() {
+		try {
+			IoArgoprojWorkflowV1alpha1WorkflowList wfList
+								= m_wfApi.workflowServiceListWorkflows(m_namespace, null, null, null, null, null,
+																		null, null, null, null, null, null, null);
+			
+			return FStream.from(wfList.getItems())
+							.filter(argoWf -> !wfList.getItems().get(0).getSpec().getTemplates().isEmpty())
+							.filter(argoWf -> argoWf.getSpec().getTemplates().get(0).getDag() != null)
+							.map(argoWf -> argoWf.getMetadata().getName())
+							.toList();
+		}
+		catch ( ApiException e ) {
+			throw toMDTWorkflowManagerException(e, "fails to get workflow list");
+		}
+	}
 
 	@Override
-	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException { }
+	public WorkflowStatus getWorkflowStatus(String wfId) throws ResourceNotFoundException {
+		try {
+			IoArgoprojWorkflowV1alpha1Workflow argoWf =
+					m_wfApi.workflowServiceGetWorkflow(m_namespace, wfId, null, null);
+
+			return ArgoUtils.toWorkflowStatus(argoWf.getStatus().getPhase());
+		}
+		catch ( ApiException e ) {
+			switch ( e.getCode() ) {
+				case 404:
+					throw new ResourceNotFoundException("Workflow", "name=" + wfId);
+			}
+			throw toMDTWorkflowManagerException(e, "fails to get workflow: name=" + wfId);
+		}
+	}
 
 	@Override
 	public List<Workflow> getWorkflowAll() {
@@ -151,7 +184,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, Init
 			WorkflowModel wfModel = m_wfModelManager.getWorkflowModel(wfModelId);
 			
 			// MDT Workflow 모델을 Argo Workflow로 변환하고 Json으로 변환한다.
-			ArgoWorkflowDescriptor argoWfDesc = new ArgoWorkflowDescriptor(wfModel, m_conf.getMdtEndpoint(),
+			ArgoWorkflowDescriptor argoWfDesc = new ArgoWorkflowDescriptor(wfModel, m_conf.getMdtUrl(),
 																			m_conf.getClientDockerImage());
 			String wfSpecJson = MDTModelSerDe.getJsonMapper().writeValueAsString(argoWfDesc);
 			
@@ -217,12 +250,36 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManager, Init
 										String.format("fails to log workflow: name=%s, pod=%s", wfId, podName));
 		}
 	}
+
+	private static final YAMLFactory YAML_FACTORY = new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER);
+	@Override
+	public String getWorkflowScript(String wfModelId)
+		throws ResourceNotFoundException {
+		WorkflowModel wfModel = m_wfModelManager.getWorkflowModel(wfModelId);
+		
+		try {
+			ArgoWorkflowDescriptor argoWfDesc = new ArgoWorkflowDescriptor(wfModel, m_conf.getMdtUrl(),
+																			m_conf.getClientDockerImage());
+			return JsonMapper.builder(YAML_FACTORY).build()
+											.writerWithDefaultPrettyPrinter()
+											.writeValueAsString(argoWfDesc);
+		}
+		catch ( JsonProcessingException e ) {
+			throw new MDTWorkflowManagerException("fails to generate workflow script", e);
+		}
+	}
+
+	@Override
+	public void onWorkflowModelAdded(WorkflowModel wfModel) throws MDTWorkflowInstanceManagerException { }
+
+	@Override
+	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException { }
 	
 	@Override
 	public String toString() {
         return String.format("ArgoWorkflowManager[%s, namespace=%s, mdt=%s, client-docker=%s]",
         						m_conf.getArgoEndpoint(), m_conf.getArgoNamespace(),
-        						m_conf.getMdtEndpoint(), m_conf.getClientDockerImage());
+        						m_conf.getMdtUrl(), m_conf.getClientDockerImage());
 	}
 	
 	private Workflow toWorkflowInstance(IoArgoprojWorkflowV1alpha1Workflow argoWf) {

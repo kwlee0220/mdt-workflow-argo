@@ -13,16 +13,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "mdt.workflow-manager.airflow")
 public class AirflowWorkflowManagerConfiguration {
-	private String m_mdtEndpoint;
+	private String m_mdtUrl;
 	private String m_airflowBaseUrl;
 	private File m_dagsFolder;
 	
-	public String getMdtEndpoint() {
-		return m_mdtEndpoint;
+	public String getMdtUrl() {
+		return m_mdtUrl;
 	}
 	
-	public void setMdtEndpoint(String endpoint) {
-		m_mdtEndpoint = endpoint;
+	public void setMdtUrl(String url) {
+		m_mdtUrl = url;
 	}
 	
 	public String getAirflowBaseUrl() {

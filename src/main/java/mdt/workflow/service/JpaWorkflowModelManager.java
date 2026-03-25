@@ -73,12 +73,12 @@ public class JpaWorkflowModelManager implements WorkflowModelManager {
     }
 
 	private static final YAMLFactory YAML_FACTORY = new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER);
-	public String getWorkflowScript(String id, String mdtEndpoint, String clientDockerImage)
+	public String getWorkflowScript(String id, String mdtUrl, String clientDockerImage)
 		throws ResourceNotFoundException {
 		WorkflowModel wfModel = getWorkflowModel(id);
 		
 		try {
-			ArgoWorkflowDescriptor argoWfDesc = new ArgoWorkflowDescriptor(wfModel, mdtEndpoint, clientDockerImage);
+			ArgoWorkflowDescriptor argoWfDesc = new ArgoWorkflowDescriptor(wfModel, mdtUrl, clientDockerImage);
 			return JsonMapper.builder(YAML_FACTORY).build()
 											.writerWithDefaultPrettyPrinter()
 											.writeValueAsString(argoWfDesc);

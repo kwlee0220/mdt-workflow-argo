@@ -13,12 +13,12 @@ import utils.func.Unchecked;
 
 import mdt.model.ResourceAlreadyExistsException;
 import mdt.model.ResourceNotFoundException;
-import mdt.workflow.MDTWorkflowInstanceManagerException;
 import mdt.workflow.Workflow;
-import mdt.workflow.WorkflowInstanceManager;
+import mdt.workflow.WorkflowInstanceManagerProvider;
 import mdt.workflow.WorkflowManager;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.WorkflowModelManager;
+import mdt.workflow.WorkflowStatus;
 
 /**
  *
@@ -28,7 +28,7 @@ import mdt.workflow.WorkflowModelManager;
 @RequiredArgsConstructor
 public class MDTWorkflowManager implements WorkflowManager {
 	private final WorkflowModelManager m_modelManager;
-	private final WorkflowInstanceManager m_instanceManager;
+	private final WorkflowInstanceManagerProvider m_instanceManager;
 	
 	@Override
 	public List<WorkflowModel> getWorkflowModelAll() {
@@ -44,7 +44,7 @@ public class MDTWorkflowManager implements WorkflowManager {
 	public WorkflowModel addWorkflowModel(WorkflowModel desc) throws ResourceAlreadyExistsException {
 		WorkflowModel wfModel = m_modelManager.addWorkflowModel(desc);
 		try {
-			onWorkflowModelAdded(wfModel);
+			m_instanceManager.onWorkflowModelAdded(wfModel);
 			return wfModel;
 		}
 		catch ( Throwable e ) {
@@ -59,7 +59,7 @@ public class MDTWorkflowManager implements WorkflowManager {
 	public WorkflowModel addOrReplaceWorkflowModel(WorkflowModel desc) {
 		WorkflowModel wfModel = m_modelManager.addOrReplaceWorkflowModel(desc);
 		try {
-			onWorkflowModelAdded(wfModel);
+			m_instanceManager.onWorkflowModelAdded(wfModel);
 			return wfModel;
 		}
 		catch ( Throwable e ) {
@@ -69,21 +69,11 @@ public class MDTWorkflowManager implements WorkflowManager {
 			throw new RuntimeException("failed to process added workflow model: " + wfModel.getId(), cause);
 		}
 	}
-
-	@Override
-	public void onWorkflowModelAdded(WorkflowModel wfModel) {
-		m_instanceManager.onWorkflowModelAdded(wfModel);
-	}
-
-	@Override
-	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException {
-		m_instanceManager.onWorkflowModelRemoved(wfModelId);
-	}
 	
 	@Override
 	public void removeWorkflowModel(String wfModelId) throws ResourceNotFoundException {
 		m_modelManager.removeWorkflowModel(wfModelId);
-		Unchecked.acceptOrIgnore(wfModelId, this::onWorkflowModelRemoved);
+		Unchecked.acceptOrIgnore(wfModelId, m_instanceManager::onWorkflowModelRemoved);
 	}
 	
 	@Override
@@ -91,15 +81,23 @@ public class MDTWorkflowManager implements WorkflowManager {
 		m_modelManager.removeWorkflowModelAll();
 	}
 	
-	@Override
-	public String getWorkflowScript(String wfModelId, String mdtEndpoint, String clientDockerImage)
-		throws ResourceNotFoundException {
-		return m_modelManager.getWorkflowScript(wfModelId, mdtEndpoint, clientDockerImage);
+	public String getWorkflowScript(String wfModelId) throws ResourceNotFoundException {
+		return m_instanceManager.getWorkflowScript(wfModelId);
 	}
 	
 	@Override
 	public List<Workflow> getWorkflowAll() {
 		return m_instanceManager.getWorkflowAll();
+	}
+
+	@Override
+	public List<String> listWorkflowIds() {
+		return m_instanceManager.listWorkflowIds();
+	}
+
+	@Override
+	public WorkflowStatus getWorkflowStatus(String wfIdStr) throws ResourceNotFoundException {
+		return m_instanceManager.getWorkflowStatus(wfIdStr);
 	}
 	
 	@Override

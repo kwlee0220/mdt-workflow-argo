@@ -36,12 +36,12 @@ public class ArgoTemplateDescriptorLoader {
 	private static final List<String> COMMAND_JAVA = List.of("java");
 	
 	private final WorkflowModel m_wfDesc;
-	private final String m_mdtEndpoint;
+	private final String m_mdtUrl;
 	private final String m_mdtClientImageName;
 	
-	public ArgoTemplateDescriptorLoader(WorkflowModel wfDesc, String mdtEndpoint, String mdtClientImageName) {
+	public ArgoTemplateDescriptorLoader(WorkflowModel wfDesc, String mdtUrl, String mdtClientImageName) {
 		m_wfDesc = wfDesc;
-		m_mdtEndpoint = mdtEndpoint;
+		m_mdtUrl = mdtUrl;
 		m_mdtClientImageName = mdtClientImageName;
 	}
 	
@@ -118,7 +118,7 @@ public class ArgoTemplateDescriptorLoader {
 		}
 		
 		List<NameValue> environs = List.of(
-			new NameValue("MDT_ENDPOINT", m_mdtEndpoint)
+			new NameValue("MDT_URL", m_mdtUrl)
 		);
 
 //		String argsStr = FStream.from(args).drop(2).join(' ');

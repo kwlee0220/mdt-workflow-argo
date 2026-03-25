@@ -31,17 +31,17 @@ public class ArgoWorkflowDescriptor {
 	private final Metadata metadata;
 	private final Spec spec;
 
-	public ArgoWorkflowDescriptor(WorkflowModel wfDesc, String mdtEndpoint, String mdtClientImageName) {
+	public ArgoWorkflowDescriptor(WorkflowModel wfDesc, String mdtUrl, String mdtClientImageName) {
 		this.metadata = new Metadata(wfDesc.getId().toLowerCase() + "-");
 		
-		String paramMdtEndpoint = "{{workflow.parameters.mdt-endpoint}}";
+		String paramMdtUrl = "{{workflow.parameters.mdt-url}}";
 		String paramClientImage = "{{workflow.parameters.mdt-client-image}}";
-		ArgoTemplateDescriptorLoader loader = new ArgoTemplateDescriptorLoader(wfDesc, paramMdtEndpoint,
+		ArgoTemplateDescriptorLoader loader = new ArgoTemplateDescriptorLoader(wfDesc, paramMdtUrl,
 																				paramClientImage);
 		
 		Arguments args = new Arguments(
 			List.of(
-				NameValue.of("mdt-endpoint", mdtEndpoint),
+				NameValue.of("mdt-url", mdtUrl),
 				NameValue.of("mdt-client-image", mdtClientImageName)
 			)
 		);

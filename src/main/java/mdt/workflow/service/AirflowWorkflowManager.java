@@ -43,7 +43,7 @@ import mdt.model.ResourceNotFoundException;
 import mdt.workflow.MDTWorkflowInstanceManagerException;
 import mdt.workflow.NodeTask;
 import mdt.workflow.Workflow;
-import mdt.workflow.WorkflowInstanceManager;
+import mdt.workflow.WorkflowInstanceManagerProvider;
 import mdt.workflow.WorkflowModel;
 import mdt.workflow.WorkflowStatus;
 import mdt.workflow.airflow.AirflowDagGenerator;
@@ -57,14 +57,14 @@ import mdt.workflow.config.AirflowWorkflowManagerConfiguration;
  * @author Kang-Woo Lee (ETRI)
  */
 @Service
-public class AirflowWorkflowManager implements WorkflowInstanceManager, InitializingBean {
+public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, InitializingBean {
 	private static final Logger s_logger = LoggerFactory.getLogger(AirflowWorkflowManager.class);
-	private static final String VARIABLE_MDT_ENDPOINT = "mdt_endpoint";
+	private static final String VARIABLE_MDT_URL = "mdt_url";
 	private static final String ADD_VARIABLE_BODY = """			
 {
-  "key": "mdt_endpoint",
+  "key": "mdt_url",
   "value": "%s/instance-manager",
-  "description": "MDT Platform endpoint"
+  "description": "MDT InstanceManager URL"
 }""";
 	
 	private final JpaWorkflowModelManager m_wfModelManager;
@@ -101,45 +101,45 @@ public class AirflowWorkflowManager implements WorkflowInstanceManager, Initiali
 											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
 											.build();
 		
-		// 혹시 있을지 모르는 'mdt_endpoint' variable 제거하고 다시 새 endpoint 추가한다.
+		// 혹시 있을지 모르는 'mdt_url' variable 제거하고 다시 새 endpoint 추가한다.
 		try {
-			m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_ENDPOINT));
+			m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_URL));
 		}
 		catch ( RESTfulRemoteException ignored ) { }
 		
-		String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtEndpoint());
+		String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtUrl());
 		m_restfulClient.post(String.format("%s/variables", m_airflowUrl),
 								RequestBody.create(reqBody, HttpRESTfulClient.MEDIA_TYPE_JSON));
 	}
 
 	@Override
-	public void onWorkflowModelAdded(WorkflowModel wfModel) throws MDTWorkflowInstanceManagerException {
-		try {
-			StringWriter writer = new StringWriter();
-			DagSpec dag = AirflowDagGenerator.generate(wfModel, writer);
-			writer.close();
-			
-			IOUtils.toFile(writer.toString(), new File(m_conf.getDagsFolder(), dag.getId() + ".py"));			
-		}
-		catch ( IOException e ) {
-			throw new MDTWorkflowInstanceManagerException(
-					"failed to generate Airflow DAG for workflow model: " + wfModel.getId(), e);
-		}
+	public List<String> listWorkflowIds() {
+		String url = String.format("%s/dags", m_airflowUrl);
+		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		
+		return FStream.from(result.get("dags").elements())
+		        		.filter(dagNode -> existsTag(dagNode, "mdt"))
+						.map(dagNode -> dagNode.get("dag_id").asText())
+						.flatMap(dagId -> FStream.from(listDagRunIds(dagId))
+												.map(runId -> new AirflowWorkflowId(dagId, runId).toStringExpr()))
+						.toList();
 	}
 
 	@Override
-	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException {
-		String dagIdEncoded = URLEncoder.encode(wfModelId, StandardCharsets.UTF_8);
-		String url = String.format("%s/dags/%s", m_airflowUrl, dagIdEncoded);
-		m_restfulClient.delete(url);
+	public WorkflowStatus getWorkflowStatus(String wfIdStr) throws ResourceNotFoundException {
+		AirflowWorkflowId wfId = AirflowWorkflowId.parse(wfIdStr);
+
+		String url = wfId.toUrl(m_airflowUrl);
+		JsonNode dagRun = m_restfulClient.get(url, m_jsonNodeDeser);
 		
-		File dagFile = new File(m_conf.getDagsFolder(), wfModelId + ".py");
-		if ( dagFile.isFile() ) {
-			if ( !dagFile.delete() ) {
-				throw new MDTWorkflowInstanceManagerException(
-						"failed to delete Airflow DAG file: " + dagFile.getAbsolutePath());
-			}
-		}
+		return switch ( dagRun.get("state").asText() ) {
+	        case "success" -> WorkflowStatus.COMPLETED;
+	        case "failed", "timeout" -> WorkflowStatus.FAILED;
+	        case "running" -> WorkflowStatus.RUNNING;
+	        case "queued" -> WorkflowStatus.STARTING;
+	        case "scheduled" -> WorkflowStatus.NOT_STARTED;
+	        default -> WorkflowStatus.UNKNOWN;
+	    };
 	}
 	
 	@Override
@@ -257,6 +257,52 @@ public class AirflowWorkflowManager implements WorkflowInstanceManager, Initiali
 	@Override
 	public String getWorkflowLog(String wfId, String podName) throws ResourceNotFoundException {
 		throw new RuntimeException("suspendWorkflow is not supported in Airflow");
+	}
+
+	@Override
+	public void onWorkflowModelAdded(WorkflowModel wfModel) throws MDTWorkflowInstanceManagerException {
+		try {
+			StringWriter writer = new StringWriter();
+			DagSpec dag = AirflowDagGenerator.generate(wfModel, writer);
+			writer.close();
+			
+			IOUtils.toFile(writer.toString(), new File(m_conf.getDagsFolder(), dag.getId() + ".py"));			
+		}
+		catch ( IOException e ) {
+			throw new MDTWorkflowInstanceManagerException(
+					"failed to generate Airflow DAG for workflow model: " + wfModel.getId(), e);
+		}
+	}
+
+	@Override
+	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException {
+		String dagIdEncoded = URLEncoder.encode(wfModelId, StandardCharsets.UTF_8);
+		String url = String.format("%s/dags/%s", m_airflowUrl, dagIdEncoded);
+		m_restfulClient.delete(url);
+		
+		File dagFile = new File(m_conf.getDagsFolder(), wfModelId + ".py");
+		if ( dagFile.isFile() ) {
+			if ( !dagFile.delete() ) {
+				throw new MDTWorkflowInstanceManagerException(
+						"failed to delete Airflow DAG file: " + dagFile.getAbsolutePath());
+			}
+		}
+	}
+
+	@Override
+	public String getWorkflowScript(String wfModelId) throws ResourceNotFoundException {
+		WorkflowModel wfModel = m_wfModelManager.getWorkflowModel(wfModelId);
+		try {
+			StringWriter writer = new StringWriter();
+			AirflowDagGenerator.generate(wfModel, writer);
+			writer.close();
+			
+			return writer.toString();		
+		}
+		catch ( IOException e ) {
+			throw new MDTWorkflowInstanceManagerException(
+					"failed to generate Airflow DAG for workflow model: " + wfModel.getId(), e);
+		}
 	}
 	
 	@Override
