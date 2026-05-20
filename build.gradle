@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'eclipse'
 }
 
 group = 'etri'
@@ -15,9 +16,6 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
 	all {
 		exclude group: 'commons-logging', module: 'commons-logging'
 	}
@@ -27,20 +25,17 @@ repositories {
 	mavenCentral()
 	maven {
 		url = uri("https://maven.aksw.org/repository/internal/")
-		allowInsecureProtocol = true
 	}
 }
 dependencies {
 	implementation project(":utils")
 	implementation project(":mdt-client")
 	// implementation project(":argo-java-client")
-    implementation 'com.google.code.gson:gson:2.9.1'
-    implementation 'io.gsonfire:gson-fire:1.9.0'
+	
+    implementation "com.google.code.gson:gson:${gson_version}"
+    implementation "io.gsonfire:gson-fire:${gson_fire_version}"
 	implementation fileTree(dir: 'lib', include: ['*.jar'])
-	
-	// Checker framework
-	implementation("org.checkerframework:checker:${checker_version}")
-	
+
 	// HTTP Client
 	implementation "com.squareup.okhttp3:okhttp:${okhttp_version}"
 	
@@ -52,14 +47,13 @@ dependencies {
     // SpringBoot dependencies
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
-	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	implementation "org.springframework.boot:spring-boot-configuration-processor:${spring_boot_version}"
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdoc_version}"
 }
 
@@ -70,4 +64,32 @@ test {
 bootJar {
 	archiveClassifier = 'all'
 	mainClass = 'mdt.workflow.MDTArgoWorkflowManagerApplication'
+}
+
+// IDE 자동 빌드가 src/main/resources 산출물을 build/classes/java/main 에 한 번 더
+// 복사해 두기 때문에(아래 eclipse 블록의 출력 디렉토리 설정 참고) 동일 리소스가
+// 두 위치에서 들어와 jar/bootJar 패키징 시 충돌하는 것을 무시한다.
+tasks.withType(Jar).configureEach {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+eclipse {
+	classpath {
+		defaultOutputDir = file('build/classes/java/main')
+		file {
+			whenMerged { cp ->
+				cp.entries.each { entry ->
+					if (entry.kind == 'src' && entry.path == 'src/main/java') {
+						entry.output = 'build/classes/java/main'
+					}
+					if (entry.kind == 'src' && entry.path == 'src/main/resources') {
+						entry.output = 'build/classes/java/main'
+					}
+					if (entry.kind == 'src' && entry.path == 'src/test/java') {
+						entry.output = 'build/classes/java/test'
+					}
+				}
+			}
+		}
+	}
 }

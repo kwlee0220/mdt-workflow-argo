@@ -10,10 +10,8 @@ import org.openapitools.client.model.IoArgoprojWorkflowV1alpha1Workflow;
 
 import com.google.common.collect.Sets;
 
-import lombok.experimental.UtilityClass;
-
 import utils.KeyedValueList;
-import utils.Utilities;
+import utils.Split;
 import utils.func.FOption;
 import utils.func.Optionals;
 import utils.stream.FStream;
@@ -28,8 +26,11 @@ import mdt.workflow.model.TaskDescriptor;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-@UtilityClass
-public class ArgoUtils {
+public final class ArgoUtils {
+	private ArgoUtils() {
+		throw new AssertionError("Should not be called: class=" + getClass().getName());
+	}
+	
 	public static WorkflowStatus toWorkflowStatus(String status) {
 		if ( status == null ) {
 			return WorkflowStatus.NOT_STARTED;
@@ -67,10 +68,10 @@ public class ArgoUtils {
 		
 		// Task status 매핑을 생성한다.
 		Map<String,IoArgoprojWorkflowV1alpha1NodeStatus> taskStatusMap
-														= FStream.from(argoWf.getStatus().getNodes().values())
-																.filter(nt -> nt.getType().equals("Pod"))
-																.tagKey(nt -> Utilities.split(nt.getName(), '.')._2)
-																.toMap();
+													= FStream.from(argoWf.getStatus().getNodes().values())
+															.filter(nt -> nt.getType().equals("Pod"))
+															.tagKey(nt -> Split.split(nt.getName(), ".").tail().get())
+															.toMap();
 		
 		String wfName = argoWf.getMetadata().getName();
 		

@@ -3,8 +3,7 @@ package mdt.workflow.airflow;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
-import utils.Tuple;
-import utils.Utilities;
+import utils.Split;
 
 
 /**
@@ -45,11 +44,11 @@ public class AirflowWorkflowId {
 	}
 	
 	public static AirflowWorkflowId parse(String taskIdStr) {
-		Tuple<String,String> pair = Utilities.split(taskIdStr, "__");
-		if ( pair == null ) {
+		Split split = Split.split(taskIdStr, "__");
+		if ( split.tail().isEmpty() ) {
 			throw new IllegalArgumentException("invalid Airflow task id: " + taskIdStr);
 		}
 		
-		return new AirflowWorkflowId(pair._1, pair._2);
+		return new AirflowWorkflowId(split.head(), split.tail().get());
 	}
 }

@@ -5,7 +5,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.List;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.jetbrains.annotations.NotNull;
 import org.openapitools.client.ApiClient;
 import org.openapitools.client.ApiException;
 import org.openapitools.client.api.WorkflowServiceApi;
@@ -27,7 +27,7 @@ import com.google.common.base.Preconditions;
 import lombok.RequiredArgsConstructor;
 
 import utils.KeyedValueList;
-import utils.Utilities;
+import utils.Split;
 import utils.http.OkHttpClientUtils;
 import utils.stream.FStream;
 
@@ -177,7 +177,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManagerProvid
 	}
 
 	@Override
-	public Workflow startWorkflow(@NonNull String wfModelId) throws ResourceNotFoundException {
+	public Workflow startWorkflow(@NotNull String wfModelId) throws ResourceNotFoundException {
 		Preconditions.checkArgument(wfModelId != null, "WorkflowModel id is null");
 		
 		try {
@@ -283,7 +283,7 @@ public class OpenApiArgoWorkflowManager implements WorkflowInstanceManagerProvid
 	}
 	
 	private Workflow toWorkflowInstance(IoArgoprojWorkflowV1alpha1Workflow argoWf) {
-		String modelId = Utilities.splitLast(argoWf.getMetadata().getName(), '-')._1;
+		String modelId = Split.splitLast(argoWf.getMetadata().getName(), "-").head();
 
 		KeyedValueList<String, TaskDescriptor> taskDescList;
 		try {

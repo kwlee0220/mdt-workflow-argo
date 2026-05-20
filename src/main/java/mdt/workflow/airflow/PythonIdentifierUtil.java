@@ -2,14 +2,15 @@ package mdt.workflow.airflow;
 
 import java.util.Set;
 
-import lombok.experimental.UtilityClass;
-
 /**
  *
  * @author Kang-Woo Lee (ETRI)
  */
-@UtilityClass
 public final class PythonIdentifierUtil {
+	private PythonIdentifierUtil() {
+		throw new AssertionError("Should not be called: class=" + getClass().getName());
+	}
+	
     // Python 3 기준 예약어 목록
     private static final Set<String> PYTHON_KEYWORDS = Set.of(
         "False", "None", "True",

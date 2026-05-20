@@ -2,7 +2,7 @@ package mdt.workflow.service;
 
 import java.util.List;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -106,7 +106,7 @@ public class MDTWorkflowManager implements WorkflowManager {
 	}
 	
 	@Override
-	public Workflow startWorkflow(@NonNull String wfModelId) throws ResourceNotFoundException {
+	public Workflow startWorkflow(@NotNull String wfModelId) throws ResourceNotFoundException {
 		return m_instanceManager.startWorkflow(wfModelId);
 	}
 	

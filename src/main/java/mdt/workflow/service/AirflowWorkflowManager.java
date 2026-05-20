@@ -10,9 +10,8 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
-import javax.annotation.Nullable;
-
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
@@ -34,6 +33,7 @@ import utils.http.HttpRESTfulClient.ErrorEntityDeserializer;
 import utils.http.HttpRESTfulClient.ResponseBodyDeserializer;
 import utils.http.OkHttpClientUtils;
 import utils.http.RESTfulErrorEntity;
+import utils.http.RESTfulIOException;
 import utils.http.RESTfulRemoteException;
 import utils.io.IOUtils;
 import utils.stream.FStream;
@@ -69,7 +69,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	
 	private final JpaWorkflowModelManager m_wfModelManager;
 	private final AirflowWorkflowManagerConfiguration m_conf;
-	private HttpRESTfulClient m_restfulClient;
+	private HttpRESTfulClient m_restfulClient = null;
 	private String m_jwtToken = null;
 	private String m_airflowUrl = null;
 	
@@ -82,40 +82,41 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	public void afterPropertiesSet() throws Exception {
 		Preconditions.checkArgument(m_conf.getDagsFolder() != null, "dags-folder is not configured");
 		Preconditions.checkArgument(m_conf.getDagsFolder().isDirectory(),
-									"dags-folder is not a directory: " + m_conf.getDagsFolder().getAbsolutePath());
+									"dags-folder is not a directory: "
+											+ m_conf.getDagsFolder().getAbsolutePath());
 
-		OkHttpClient httpClient = OkHttpClientUtils.newTrustAllOkHttpClientBuilder().build();
-		JsonMapper mapper = MDTModelSerDe.getJsonMapper();
-		m_restfulClient = HttpRESTfulClient.builder()
-											.httpClient(httpClient)
-											.jsonMapper(mapper)
-											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
-											.build();
-		
-		m_jwtToken = getJwtToken(m_restfulClient, "airflow", "airflow");
-		m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
-		m_restfulClient = HttpRESTfulClient.builder()
-											.httpClient(httpClient)
-											.header("Authorization", "Bearer " + m_jwtToken)
-											.jsonMapper(mapper)
-											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
-											.build();
-		
-		// 혹시 있을지 모르는 'mdt_url' variable 제거하고 다시 새 endpoint 추가한다.
-		try {
-			m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_URL));
-		}
-		catch ( RESTfulRemoteException ignored ) { }
-		
-		String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtUrl());
-		m_restfulClient.post(String.format("%s/variables", m_airflowUrl),
-								RequestBody.create(reqBody, HttpRESTfulClient.MEDIA_TYPE_JSON));
+//		OkHttpClient httpClient = OkHttpClientUtils.newTrustAllOkHttpClientBuilder().build();
+//		JsonMapper mapper = MDTModelSerDe.getJsonMapper();
+//		m_restfulClient = HttpRESTfulClient.builder()
+//											.httpClient(httpClient)
+//											.jsonMapper(mapper)
+//											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
+//											.build();
+//		
+//		m_jwtToken = getJwtToken(m_restfulClient, "airflow", "airflow");
+//		m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
+//		m_restfulClient = HttpRESTfulClient.builder()
+//											.httpClient(httpClient)
+//											.header("Authorization", "Bearer " + m_jwtToken)
+//											.jsonMapper(mapper)
+//											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
+//											.build();
+//		
+//		// 혹시 있을지 모르는 'mdt_url' variable 제거하고 다시 새 endpoint 추가한다.
+//		try {
+//			m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_URL));
+//		}
+//		catch ( RESTfulRemoteException ignored ) { }
+//		
+//		String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtUrl());
+//		m_restfulClient.post(String.format("%s/variables", m_airflowUrl),
+//								RequestBody.create(reqBody, HttpRESTfulClient.MEDIA_TYPE_JSON));
 	}
 
 	@Override
 	public List<String> listWorkflowIds() {
 		String url = String.format("%s/dags", m_airflowUrl);
-		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode result = getRestfulClient().get(url, m_jsonNodeDeser);
 		
 		return FStream.from(result.get("dags").elements())
 		        		.filter(dagNode -> existsTag(dagNode, "mdt"))
@@ -130,7 +131,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 		AirflowWorkflowId wfId = AirflowWorkflowId.parse(wfIdStr);
 
 		String url = wfId.toUrl(m_airflowUrl);
-		JsonNode dagRun = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode dagRun = getRestfulClient().get(url, m_jsonNodeDeser);
 		
 		return switch ( dagRun.get("state").asText() ) {
 	        case "success" -> WorkflowStatus.COMPLETED;
@@ -148,7 +149,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 		// 각 DAG에 대응되는 MDT Workflow 인스턴스 정보를 구성한다.
 
 		String url = String.format("%s/dags", m_airflowUrl);
-		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode result = getRestfulClient().get(url, m_jsonNodeDeser);
 		return FStream.from(result.get("dags").elements())
 				        .filter(dagNode -> existsTag(dagNode, "mdt"))
 						.map(dagNode -> dagNode.get("dag_id").asText())
@@ -169,20 +170,20 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	public Workflow getWorkflow(String wfIdStr) {
 		AirflowWorkflowId wfId = AirflowWorkflowId.parse(wfIdStr);
 		
-		JsonNode dags = m_restfulClient.get(wfId.toUrl(m_airflowUrl), m_jsonNodeDeser);
+		JsonNode dags = getRestfulClient().get(wfId.toUrl(m_airflowUrl), m_jsonNodeDeser);
 		return getWorkflowFromDagRun(wfId.getDagId(), dags);
 	}
 
 	@Override
 	public void removeWorkflow(String wfIdStr) {
 		AirflowWorkflowId wfId = AirflowWorkflowId.parse(wfIdStr);
-		m_restfulClient.delete(wfId.toUrl(m_airflowUrl));
+		getRestfulClient().delete(wfId.toUrl(m_airflowUrl));
 	}
 
 	@Override
 	public void removeWorkflowAll() {
 		String url = String.format("%s/dags", m_airflowUrl);
-		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode result = getRestfulClient().get(url, m_jsonNodeDeser);
 		FStream.from(result.get("dags").elements())
 						.map(dagNode -> dagNode.get("dag_id").asText())
 						.flatMap(dagId -> FStream.from(listDagRunIds(dagId))
@@ -201,16 +202,16 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	private void enableDag(String dagId) {
 		String dagIdEncoded = URLEncoder.encode(dagId, StandardCharsets.UTF_8);
 		String url = String.format("%s/dags/%s", m_airflowUrl, dagIdEncoded);
-		JsonNode dag = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode dag = getRestfulClient().get(url, m_jsonNodeDeser);
 		if ( dag.get("is_paused").asBoolean() ) {
 			RequestBody reqBody = RequestBody.create("{\"is_paused\": false}",
 													HttpRESTfulClient.MEDIA_TYPE_JSON);
-			m_restfulClient.patch(url, reqBody);
+			getRestfulClient().patch(url, reqBody);
 		}
 	}
 
 	@Override
-	public Workflow startWorkflow(@NonNull String modelId) throws ResourceNotFoundException {
+	public Workflow startWorkflow(@NotNull String modelId) throws ResourceNotFoundException {
 		String url = String.format("%s/dags/%s/dagRuns", m_airflowUrl, modelId);
 
 		enableDag(modelId);
@@ -220,7 +221,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 			String reqBodyStr = MDTModelSerDe.MAPPER.writeValueAsString(startReq);
 			RequestBody reqBody = RequestBody.create(reqBodyStr, HttpRESTfulClient.MEDIA_TYPE_JSON);
 			
-			JsonNode dags = m_restfulClient.post(url, reqBody, m_jsonNodeDeser);
+			JsonNode dags = getRestfulClient().post(url, reqBody, m_jsonNodeDeser);
 			return getWorkflowFromDagRun(modelId, dags);
 		}
 		catch ( JsonProcessingException e ) {
@@ -239,7 +240,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 					String url = String.format("%s/taskInstances/%s", wfId.toUrl(m_airflowUrl), taskId);
 					String reqBodyStr = "{\"state\": \"failed\"}";
 					RequestBody reqBody = RequestBody.create(reqBodyStr, HttpRESTfulClient.MEDIA_TYPE_JSON);
-					m_restfulClient.patch(url, reqBody);
+					getRestfulClient().patch(url, reqBody);
 				});
 		}
 	}
@@ -278,7 +279,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	public void onWorkflowModelRemoved(String wfModelId) throws MDTWorkflowInstanceManagerException {
 		String dagIdEncoded = URLEncoder.encode(wfModelId, StandardCharsets.UTF_8);
 		String url = String.format("%s/dags/%s", m_airflowUrl, dagIdEncoded);
-		m_restfulClient.delete(url);
+		getRestfulClient().delete(url);
 		
 		File dagFile = new File(m_conf.getDagsFolder(), wfModelId + ".py");
 		if ( dagFile.isFile() ) {
@@ -313,7 +314,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	
 	private FStream<Workflow> listDagRuns(String dagId) {
 		String url = String.format("%s/dags/%s/dagRuns", m_airflowUrl, dagId);
-		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode result = getRestfulClient().get(url, m_jsonNodeDeser);
 		return FStream.from(result.get("dag_runs").elements())
 				.mapOrIgnore(jnode -> {
 					try {
@@ -328,13 +329,13 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 	}
 	private FStream<String> listDagRunIds(String dagId) {
 		String url = String.format("%s/dags/%s/dagRuns", m_airflowUrl, dagId);
-		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode result = getRestfulClient().get(url, m_jsonNodeDeser);
 		return FStream.from(result.get("dag_runs").elements())
 						.map(jnode -> jnode.get("dag_run_id").asText());
 	}
 	
 	private JsonNode getDagRunNode(AirflowWorkflowId wfId) {
-		return m_restfulClient.get(wfId.toUrl(m_airflowUrl), m_jsonNodeDeser);
+		return getRestfulClient().get(wfId.toUrl(m_airflowUrl), m_jsonNodeDeser);
 	}
 	
 	private boolean updateDagRunState(AirflowWorkflowId wfId, String newState, String expectedState) {
@@ -343,7 +344,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 		if ( currentState.equals(expectedState) ) {
 			String requestBodyStr = String.format("{\"state\": \"%s\"}", newState);
 			RequestBody reqBody = RequestBody.create(requestBodyStr, HttpRESTfulClient.MEDIA_TYPE_JSON);
-			m_restfulClient.patch(wfId.toUrl(m_airflowUrl), reqBody);
+			getRestfulClient().patch(wfId.toUrl(m_airflowUrl), reqBody);
 			
 			return true;
 		}
@@ -386,7 +387,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 		AirflowWorkflowId wfId = new AirflowWorkflowId(modelId, dagRunNode.get("dag_run_id").asText());
 		String url = wfId.toUrl(m_airflowUrl);
 		
-		JsonNode dagRun = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode dagRun = getRestfulClient().get(url, m_jsonNodeDeser);
 		
 		WorkflowStatus status = switch ( dagRun.get("state").asText() ) {
             case "success" -> WorkflowStatus.COMPLETED;
@@ -414,7 +415,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 		url = ( stateFilter != null )
 			? String.format("%s/taskInstances?state=%s", url, stateFilter)
 			:  String.format("%s/taskInstances", url);
-		JsonNode result = m_restfulClient.get(url, m_jsonNodeDeser);
+		JsonNode result = getRestfulClient().get(url, m_jsonNodeDeser);
 		return FStream.from(result.get("task_instances").elements());
 	}
 	
@@ -464,5 +465,47 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 				throw new IOException("invalid Airflow error response: " + respBody);
 			}
 		}
+	}
+	
+	private HttpRESTfulClient getRestfulClient() {
+		if ( m_restfulClient == null ) {
+			try {
+				OkHttpClient httpClient = OkHttpClientUtils.newTrustAllOkHttpClientBuilder().build();
+				JsonMapper mapper = MDTModelSerDe.getJsonMapper();
+				m_restfulClient = HttpRESTfulClient.builder()
+													.httpClient(httpClient)
+													.jsonMapper(mapper)
+													.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
+													.build();
+
+				m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
+				m_jwtToken = getJwtToken(m_restfulClient, "airflow", "airflow");
+				m_restfulClient = HttpRESTfulClient.builder()
+													.httpClient(httpClient)
+													.header("Authorization", "Bearer " + m_jwtToken)
+													.jsonMapper(mapper)
+													.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
+													.build();
+				
+				// 혹시 있을지 모르는 'mdt_url' variable 제거하고 다시 새 endpoint 추가한다.
+				try {
+					m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_URL));
+				}
+				catch ( RESTfulRemoteException ignored ) { }
+				
+				String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtUrl());
+				m_restfulClient.post(String.format("%s/variables", m_airflowUrl),
+										RequestBody.create(reqBody, HttpRESTfulClient.MEDIA_TYPE_JSON));
+			}
+			catch ( RESTfulIOException e ) {
+				throw new RESTfulIOException("failed to connect to Airflow REST API, airflow-url="
+											+ m_airflowUrl, e);
+			}
+			catch ( Exception e ) {
+				throw new RuntimeException("failed to initialize AirflowWorkflowManager", e);
+			}
+		}
+		
+		return m_restfulClient;
 	}
 }
