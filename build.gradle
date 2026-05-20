@@ -57,10 +57,6 @@ dependencies {
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdoc_version}"
 }
 
-test {
-	useJUnitPlatform()
-}
-
 bootJar {
 	archiveClassifier = 'all'
 	mainClass = 'mdt.workflow.MDTArgoWorkflowManagerApplication'
