@@ -85,6 +85,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 									"dags-folder is not a directory: "
 											+ m_conf.getDagsFolder().getAbsolutePath());
 
+		m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
 //		OkHttpClient httpClient = OkHttpClientUtils.newTrustAllOkHttpClientBuilder().build();
 //		JsonMapper mapper = MDTModelSerDe.getJsonMapper();
 //		m_restfulClient = HttpRESTfulClient.builder()
@@ -478,7 +479,6 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 													.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
 													.build();
 
-				m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
 				m_jwtToken = getJwtToken(m_restfulClient, "airflow", "airflow");
 				m_restfulClient = HttpRESTfulClient.builder()
 													.httpClient(httpClient)
