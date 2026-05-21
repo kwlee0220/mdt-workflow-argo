@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,6 +29,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 
 import utils.LocalDateTimes;
+import utils.StrSubstitutor;
 import utils.http.HttpRESTfulClient;
 import utils.http.HttpRESTfulClient.ErrorEntityDeserializer;
 import utils.http.HttpRESTfulClient.ResponseBodyDeserializer;
@@ -59,11 +61,11 @@ import mdt.workflow.config.AirflowWorkflowManagerConfiguration;
 @Service
 public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, InitializingBean {
 	private static final Logger s_logger = LoggerFactory.getLogger(AirflowWorkflowManager.class);
-	private static final String VARIABLE_MDT_URL = "mdt_url";
+	private static final String VARIABLE_MDT_URL = "mdt_manager_url";
 	private static final String ADD_VARIABLE_BODY = """			
 {
-  "key": "mdt_url",
-  "value": "%s/instance-manager",
+  "key": "${VARIABLE_MDT_URL}",
+  "value": "${MDT_URL}/instance-manager",
   "description": "MDT InstanceManager URL"
 }""";
 	
@@ -86,32 +88,13 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 											+ m_conf.getDagsFolder().getAbsolutePath());
 
 		m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
-//		OkHttpClient httpClient = OkHttpClientUtils.newTrustAllOkHttpClientBuilder().build();
-//		JsonMapper mapper = MDTModelSerDe.getJsonMapper();
-//		m_restfulClient = HttpRESTfulClient.builder()
-//											.httpClient(httpClient)
-//											.jsonMapper(mapper)
-//											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
-//											.build();
-//		
-//		m_jwtToken = getJwtToken(m_restfulClient, "airflow", "airflow");
-//		m_airflowUrl = m_conf.getAirflowBaseUrl() + "/api/v2";
-//		m_restfulClient = HttpRESTfulClient.builder()
-//											.httpClient(httpClient)
-//											.header("Authorization", "Bearer " + m_jwtToken)
-//											.jsonMapper(mapper)
-//											.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
-//											.build();
-//		
-//		// 혹시 있을지 모르는 'mdt_url' variable 제거하고 다시 새 endpoint 추가한다.
-//		try {
-//			m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_URL));
-//		}
-//		catch ( RESTfulRemoteException ignored ) { }
-//		
-//		String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtUrl());
-//		m_restfulClient.post(String.format("%s/variables", m_airflowUrl),
-//								RequestBody.create(reqBody, HttpRESTfulClient.MEDIA_TYPE_JSON));
+		try {
+			getRestfulClient();
+		}
+		catch ( Exception e ) {
+			s_logger.error("failed to initialize AirflowWorkflowManager: airflow-url={}, cause={}",
+							m_airflowUrl, "" + e);
+		}
 	}
 
 	@Override
@@ -493,9 +476,13 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 				}
 				catch ( RESTfulRemoteException ignored ) { }
 				
-				String reqBody = String.format(ADD_VARIABLE_BODY, m_conf.getMdtUrl());
+				
+				String reqBody = StrSubstitutor.with(Map.of("VARIABLE_MDT_URL", VARIABLE_MDT_URL,
+														"MDT_URL", m_conf.getMdtUrl()))
+											.replace(ADD_VARIABLE_BODY);
 				m_restfulClient.post(String.format("%s/variables", m_airflowUrl),
 										RequestBody.create(reqBody, HttpRESTfulClient.MEDIA_TYPE_JSON));
+				s_logger.info("successfully connected to Airflow REST API: airflow-url={}", m_airflowUrl);
 			}
 			catch ( RESTfulIOException e ) {
 				throw new RESTfulIOException("failed to connect to Airflow REST API, airflow-url="
