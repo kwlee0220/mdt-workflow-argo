@@ -470,7 +470,7 @@ public class AirflowWorkflowManager implements WorkflowInstanceManagerProvider, 
 													.errorEntityDeserializer(new AirflowErrorEntityDeserializer())
 													.build();
 				
-				// 혹시 있을지 모르는 'mdt_url' variable 제거하고 다시 새 endpoint 추가한다.
+				// 혹시 있을지 모르는 'mdt_manager_url' variable 제거하고 다시 새 endpoint 추가한다.
 				try {
 					m_restfulClient.delete(String.format("%s/variables/%s", m_airflowUrl, VARIABLE_MDT_URL));
 				}
