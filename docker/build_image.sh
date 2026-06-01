@@ -35,14 +35,29 @@ USE_HOST_USER=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --tag|-t)
+            if [ $# -lt 2 ]; then
+                echo "오류: '$1' 옵션에는 값이 필요합니다 (예: $1 1.3.0)." >&2
+                echo "사용법은 '$0 --help' 참고" >&2
+                exit 1
+            fi
             MDT_VERSION="$2"
             shift 2
             ;;
         --uid)
+            if [ $# -lt 2 ]; then
+                echo "오류: '$1' 옵션에는 값이 필요합니다 (예: $1 1000)." >&2
+                echo "사용법은 '$0 --help' 참고" >&2
+                exit 1
+            fi
             BUILD_UID="$2"
             shift 2
             ;;
         --gid)
+            if [ $# -lt 2 ]; then
+                echo "오류: '$1' 옵션에는 값이 필요합니다 (예: $1 1000)." >&2
+                echo "사용법은 '$0 --help' 참고" >&2
+                exit 1
+            fi
             BUILD_GID="$2"
             shift 2
             ;;
@@ -60,6 +75,12 @@ done
 
 # --host-user 옵션 시 호스트 사용자 UID/GID 사용
 if [ "$USE_HOST_USER" = true ]; then
+    # --uid/--gid와 함께 쓰면 어느 값을 의도했는지 모호하므로 명확히 실패시킨다.
+    if [ -n "$BUILD_UID" ] || [ -n "$BUILD_GID" ]; then
+        echo "오류: --host-user 는 --uid/--gid 와 함께 사용할 수 없습니다 (둘 중 하나만 지정하세요)." >&2
+        echo "사용법은 '$0 --help' 참고" >&2
+        exit 1
+    fi
     BUILD_UID=$(id -u)
     BUILD_GID=$(id -g)
 fi
@@ -84,11 +105,16 @@ MDT_WORKFLOW_HOME="$MDT_HOME/mdt-workflow"
 # 빌드 종료 시 임시 jar 정리 (성공/실패 모두)
 trap 'rm -f mdt-workflow-argo-all.jar' EXIT
 
-# 기존 이미지 삭제 (없으면 무시)
-docker image rmi -f "$REPOSITORY" 2>/dev/null || true
-
 echo "==> Docker 이미지 빌드 시작: $REPOSITORY"
-cp "$MDT_WORKFLOW_HOME/mdt-workflow-argo-all.jar"  mdt-workflow-argo-all.jar
+
+# JAR 사전 검사: 없으면 cp 의 모호한 에러 대신 무엇을 해야 할지 안내한다.
+SRC_JAR="$MDT_WORKFLOW_HOME/mdt-workflow-argo-all.jar"
+if [ ! -f "$SRC_JAR" ]; then
+    echo "오류: JAR 파일을 찾을 수 없습니다: $SRC_JAR" >&2
+    echo "       먼저 './gradle_assemble_all.sh' 또는 './deploy_jar_all.sh'로 JAR을 준비하세요." >&2
+    exit 1
+fi
+cp "$SRC_JAR" mdt-workflow-argo-all.jar
 
 # Docker 이미지 빌드 (UID/GID가 지정된 경우 --build-arg 전달)
 BUILD_ARGS=(-t "$REPOSITORY")
@@ -99,6 +125,9 @@ if [ -n "$BUILD_GID" ]; then
     BUILD_ARGS+=(--build-arg "GID=$BUILD_GID")
 fi
 docker build "${BUILD_ARGS[@]}" .
+
+# 빌드 성공으로 태그가 재지정되며 떨어져 나온 dangling 이미지 정리 (이 이미지 라벨에 한정)
+docker image prune -f --filter "label=mdt.image=mdt-workflow-argo"
 
 # 성공 메시지 (실패 시 set -e가 트리거되어 여기까지 도달하지 않음)
 echo "==> 빌드 완료: $REPOSITORY"
