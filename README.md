@@ -1,1 +1,1 @@
-# mdt-workflow-argo
+# mdt-workflow

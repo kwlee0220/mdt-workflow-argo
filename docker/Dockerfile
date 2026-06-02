@@ -30,10 +30,10 @@ RUN if getent group "${GID}" >/dev/null; then \
 # 아래 JAR은 docker/build_image.sh가 $MDT_HOME/mdt-workflow/에서 빌드 컨텍스트로
 # 복사해 둔 것에 의존한다(빌드 후 trap으로 삭제됨). Dockerfile만 직접 빌드하면 JAR이
 # 없어 실패하므로, 반드시 build_image.sh를 경유하거나 동일 위치에 JAR을 먼저 두어야 한다.
-COPY --chown=mdt:mdt ./mdt-workflow-argo-all.jar /mdt/mdt-workflow/
+COPY --chown=mdt:mdt ./mdt-workflow-all.jar /mdt/mdt-workflow/
 
 WORKDIR /mdt/mdt-workflow
 USER mdt
 
 CMD ["java", "-XX:MaxRAMPercentage=75.0", \
-     "-jar", "/mdt/mdt-workflow/mdt-workflow-argo-all.jar"]
+     "-jar", "/mdt/mdt-workflow/mdt-workflow-all.jar"]

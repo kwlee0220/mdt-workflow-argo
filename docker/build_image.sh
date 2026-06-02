@@ -103,18 +103,18 @@ fi
 MDT_WORKFLOW_HOME="$MDT_HOME/mdt-workflow"
 
 # 빌드 종료 시 임시 jar 정리 (성공/실패 모두)
-trap 'rm -f mdt-workflow-argo-all.jar' EXIT
+trap 'rm -f mdt-workflow-all.jar' EXIT
 
 echo "==> Docker 이미지 빌드 시작: $REPOSITORY"
 
 # JAR 사전 검사: 없으면 cp 의 모호한 에러 대신 무엇을 해야 할지 안내한다.
-SRC_JAR="$MDT_WORKFLOW_HOME/mdt-workflow-argo-all.jar"
+SRC_JAR="$MDT_WORKFLOW_HOME/mdt-workflow-all.jar"
 if [ ! -f "$SRC_JAR" ]; then
     echo "오류: JAR 파일을 찾을 수 없습니다: $SRC_JAR" >&2
     echo "       먼저 './gradle_assemble_all.sh' 또는 './deploy_jar_all.sh'로 JAR을 준비하세요." >&2
     exit 1
 fi
-cp "$SRC_JAR" mdt-workflow-argo-all.jar
+cp "$SRC_JAR" mdt-workflow-all.jar
 
 # Docker 이미지 빌드 (UID/GID가 지정된 경우 --build-arg 전달)
 BUILD_ARGS=(-t "$REPOSITORY")
