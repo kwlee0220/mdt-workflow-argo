@@ -17,7 +17,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     exit 0
 fi
 
-IMAGE_NAME="mdt-workflow-argo"
+IMAGE_NAME="mdt-workflow"
 
 # --repo 옵션 처리 및 FULL_TAG 변수 설정
 REPO=""

@@ -1,7 +1,7 @@
 FROM eclipse-temurin:21-jre-jammy
 
 # build_image.sh 의 'docker image prune --filter' 가 이 라벨로 자기 dangling 이미지만 정리한다.
-LABEL mdt.image=mdt-workflow-argo
+LABEL mdt.image=mdt-workflow
 
 # UID/GID 설정 (빌드 시 --build-arg UID=1000 형태로 오버라이드 가능)
 ARG UID=1000

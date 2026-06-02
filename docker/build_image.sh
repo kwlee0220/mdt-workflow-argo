@@ -127,7 +127,7 @@ fi
 docker build "${BUILD_ARGS[@]}" .
 
 # 빌드 성공으로 태그가 재지정되며 떨어져 나온 dangling 이미지 정리 (이 이미지 라벨에 한정)
-docker image prune -f --filter "label=mdt.image=mdt-workflow-argo"
+docker image prune -f --filter "label=mdt.image=mdt-workflow"
 
 # 성공 메시지 (실패 시 set -e가 트리거되어 여기까지 도달하지 않음)
 echo "==> 빌드 완료: $REPOSITORY"
